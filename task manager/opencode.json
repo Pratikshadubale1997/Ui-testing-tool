@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "project-manager",
+  "agent": {
+    "project-manager": {
+      "description": "Project manager agent for daily epics, task planning, screen reading, and video analysis.",
+      "mode": "primary",
+      "color": "#4A90D9"
+    },
+    "personal-assistant": {
+      "description": "Personal assistant agent that plans daily tasks, manages schedules, and organizes your work.",
+      "mode": "subagent",
+      "color": "#E8913A"
+    }
+  }
+}

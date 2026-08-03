@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Monitor Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface2: #334155;
+  --border: #334155;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --primary: #3b82f6;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --radius: 12px;
+}
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+/* Header */
+.header { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; margin-bottom: 32px; border-bottom: 1px solid var(--border); }
+.header h1 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.header h1 i { color: var(--primary); }
+.header-left { display: flex; align-items: center; gap: 16px; }
+.status-badge { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: 600; }
+.status-badge.ok { background: rgba(34,197,94,0.15); color: var(--green); }
+.status-badge.warn { background: rgba(234,179,8,0.15); color: var(--yellow); }
+.status-badge.crit { background: rgba(239,68,68,0.15); color: var(--red); }
+.status-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-badge.ok .dot { background: var(--green); }
+.status-badge.warn .dot { background: var(--yellow); }
+.status-badge.crit .dot { background: var(--red); }
+.header-controls { display: flex; align-items: center; gap: 12px; }
+.header-controls select { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.btn { padding: 8px 16px; border-radius: 8px; border: none; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; transition: 0.2s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+.btn-outline { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-outline:hover { border-color: var(--primary); color: var(--text); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+
+/* Grid */
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+/* Metric Card */
+.metric-card { background: var(--surface); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); }
+.metric-card .label { font-size: 13px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.metric-card .label i { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.metric-card .label i.blue { background: rgba(59,130,246,0.15); color: var(--primary); }
+.metric-card .label i.green { background: rgba(34,197,94,0.15); color: var(--green); }
+.metric-card .label i.yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+.metric-card .label i.red { background: rgba(239,68,68,0.15); color: var(--red); }
+
+.value-row { display: flex; align-items: baseline; justify-content: space-between; }
+.value-row .value { font-size: 32px; font-weight: 800; }
+.value-row .unit { font-size: 14px; color: var(--muted); margin-left: 4px; }
+.value-row .sub { font-size: 13px; color: var(--muted); }
+
+/* Bar */
+.bar-track { height: 6px; background: var(--surface2); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.bar-fill.green { background: var(--green); }
+.bar-fill.yellow { background: var(--yellow); }
+.bar-fill.red { background: var(--red); }
+.bar-fill.blue { background: var(--primary); }
+
+/* Table */
+.table-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+.table-card .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.table-card .card-header h3 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.table-card .card-header .count { background: var(--surface2); padding: 2px 10px; border-radius: 50px; font-size: 12px; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 12px 20px; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+td { padding: 12px 20px; font-size: 14px; border-bottom: 1px solid rgba(51,65,85,0.5); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(59,130,246,0.05); }
+td .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 50px; font-size: 12px; font-weight: 600; }
+.badge-warn { background: rgba(234,179,8,0.15); color: var(--yellow); }
+.badge-crit { background: rgba(239,68,68,0.15); color: var(--red); }
+.badge-ok { background: rgba(34,197,94,0.15); color: var(--green); }
+td .path { color: var(--muted); font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+td .file-size { color: var(--muted); font-size: 12px; }
+td .checkbox-wrap { display: flex; align-items: center; }
+td input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+
+/* Alerts timeline */
+.alert-list { max-height: 300px; overflow-y: auto; }
+.alert-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 20px; border-bottom: 1px solid rgba(51,65,85,0.3); font-size: 13px; }
+.alert-item:last-child { border-bottom: none; }
+.alert-item .icon { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+.alert-item .icon.warn { background: var(--yellow); }
+.alert-item .icon.crit { background: var(--red); }
+.alert-item .icon.ok { background: var(--green); }
+.alert-item .msg { flex: 1; }
+.alert-item .msg .title { font-weight: 600; }
+.alert-item .msg .desc { color: var(--muted); margin-top: 2px; }
+.alert-item .time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; background: var(--surface); padding: 4px; border-radius: 10px; border: 1px solid var(--border); width: fit-content; }
+.tab { padding: 8px 20px; border-radius: 8px; border: none; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: 0.2s; }
+.tab.active { background: var(--primary); color: #fff; }
+.tab:hover:not(.active) { color: var(--text); }
+
+/* Progress ring */
+.ring-wrap { display: flex; flex-direction: column; align-items: center; }
+.ring-wrap svg { width: 100px; height: 100px; }
+.ring-bg { fill: none; stroke: var(--surface2); stroke-width: 8; }
+.ring-fg { fill: none; stroke-width: 8; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 0.5s ease; }
+.ring-fg.green { stroke: var(--green); }
+.ring-fg.yellow { stroke: var(--yellow); }
+.ring-fg.red { stroke: var(--red); }
+.ring-text { font-size: 24px; font-weight: 700; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: var(--radius); padding: 32px; max-width: 600px; width: 90%; border: 1px solid var(--border); }
+.modal h2 { margin-bottom: 16px; font-size: 18px; }
+.modal p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+.modal .modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
+
+/* Scanning state */
+.scan-progress { display: none; align-items: center; gap: 12px; padding: 20px; color: var(--muted); font-size: 14px; }
+.scan-progress.active { display: flex; }
+.spinner { width: 20px; height: 20px; border: 2px solid var(--surface2); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+.empty-state i { font-size: 40px; margin-bottom: 12px; display: block; }
+.empty-state p { font-size: 14px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .grid-4 { grid-template-columns: 1fr; }
+  .header { flex-direction: column; gap: 12px; }
+  .header-controls { width: 100%; }
+  .header-controls select { flex: 1; }
+  .tabs { width: 100%; overflow-x: auto; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-left">
+      <h1><i class="fas fa-chart-line"></i> System Monitor</h1>
+      <span class="status-badge ok" id="statusBadge"><span class="dot"></span> <span id="statusLabel">Healthy</span></span>
+    </div>
+    <div class="header-controls">
+      <span style="font-size:13px;color:var(--muted)"><i class="far fa-clock"></i> <span id="lastUpdated">--</span></span>
+      <select id="refreshInterval" onchange="changeInterval(this.value)">
+        <option value="5">5s</option>
+        <option value="10" selected>10s</option>
+        <option value="30">30s</option>
+        <option value="60">60s</option>
+      </select>
+      <button class="btn btn-outline" onclick="refreshNow()"><i class="fas fa-sync-alt"></i></button>
+    </div>
+  </div>
+
+  <div class="grid-4" id="metricsGrid">
+    <div class="metric-card">
+      <div class="label"><i class="fas fa-microchip blue"></i> CPU</div>
+      <div class="value-row">
+        <span><span class="value" id="cpuVal">--</span><span class="unit">%</span></span>
+        <span class="sub" id="cpuSub">--</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill green" id="cpuBar" style="width:0%"></div></div>
+    </div>
+    <div class="metric-card">
+      <div class="label"><i class="fas fa-memory green"></i> Memory</div>
+      <div class="value-row">
+        <span><span class="value" id="memVal">--</span><span class="unit">%</span></span>
+        <span class="sub" id="memSub">--</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill green" id="memBar" style="width:0%"></div></div>
+    </div>
+    <div class="metric-card">
+      <div class="label"><i class="fas fa-database yellow"></i> Disk (C:)</div>
+      <div class="value-row">
+        <span><span class="value" id="diskVal">--</span><span class="unit">%</span></span>
+        <span class="sub" id="diskSub">--</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill green" id="diskBar" style="width:0%"></div></div>
+    </div>
+    <div class="metric-card">
+      <div class="label"><i class="fas fa-tasks red"></i> Processes</div>
+      <div class="value-row">
+        <span><span class="value" id="procVal">--</span></span>
+        <span class="sub" id="procSub">running</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill blue" id="procBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="tabs" id="mainTabs">
+    <button class="tab active" data-tab="alerts" onclick="switchTab('alerts')"><i class="fas fa-bell"></i> Alerts</button>
+    <button class="tab" data-tab="duplicates" onclick="switchTab('duplicates')"><i class="fas fa-copy"></i> Duplicate Files</button>
+    <button class="tab" data-tab="processes" onclick="switchTab('processes')"><i class="fas fa-list"></i> Top Processes</button>
+  </div>
+
+  <!-- Alerts Tab -->
+  <div class="tab-content" id="tab-alerts">
+    <div class="table-card">
+      <div class="card-header">
+        <h3><i class="fas fa-history"></i> Alert History</h3>
+        <span class="count" id="alertCount">0</span>
+      </div>
+      <div class="alert-list" id="alertList">
+        <div class="empty-state"><i class="fas fa-check-circle" style="color:var(--green)"></i><p>No alerts — all systems healthy</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duplicates Tab -->
+  <div class="tab-content" id="tab-duplicates" style="display:none">
+    <div class="table-card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:12px">
+          <h3><i class="fas fa-copy"></i> Duplicate Files</h3>
+          <button class="btn btn-primary btn-sm" onclick="scanDuplicates()" id="scanBtn"><i class="fas fa-search"></i> Scan Now</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="count" id="dupCount">0</span>
+          <span style="font-size:13px;color:var(--muted)" id="dupSize">0 GB</span>
+          <button class="btn btn-danger btn-sm" onclick="confirmCleanup()" id="cleanupBtn" style="display:none"><i class="fas fa-trash"></i> Clean Selected</button>
+        </div>
+      </div>
+      <div class="scan-progress" id="scanProgress"><div class="spinner"></div> Scanning for duplicates... <span style="flex:1;text-align:right;font-size:12px" id="scanStatus"></span></div>
+      <div id="duplicatesWrap">
+        <div class="empty-state"><i class="fas fa-search"></i><p>Click "Scan Now" to find duplicate files</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Processes Tab -->
+  <div class="tab-content" id="tab-processes" style="display:none">
+    <div class="grid-2">
+      <div class="table-card">
+        <div class="card-header"><h3><i class="fas fa-microchip"></i> Top by CPU</h3><span class="count" id="cpuProcCount">0</span></div>
+        <div id="topCpuList"><div class="empty-state"><p>Loading...</p></div></div>
+      </div>
+      <div class="table-card">
+        <div class="card-header"><h3><i class="fas fa-memory"></i> Top by Memory</h3><span class="count" id="memProcCount">0</span></div>
+        <div id="topMemList"><div class="empty-state"><p>Loading...</p></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cleanup Modal -->
+<div class="modal-overlay" id="cleanupModal">
+  <div class="modal">
+    <h2><i class="fas fa-exclamation-triangle" style="color:var(--yellow)"></i> Confirm Cleanup</h2>
+    <p>Delete the selected duplicate files? This action cannot be undone. Files will be moved to Recycle Bin.</p>
+    <div id="cleanupSummary" style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('cleanupModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="executeCleanup()"><i class="fas fa-trash"></i> Delete Files</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let refreshTimer = null;
+let dupResults = [];
+
+function getBarClass(val, warn, crit) {
+  if (val >= crit) return 'red';
+  if (val >= warn) return 'yellow';
+  return 'green';
+}
+
+function getBadgeClass(val, warn, crit) {
+  if (val >= crit) return 'badge-crit';
+  if (val >= warn) return 'badge-warn';
+  return 'badge-ok';
+}
+
+async function fetchData() {
+  try {
+    const res = await fetch('/api/status');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function updateDashboard(data) {
+  if (!data) {
+    document.getElementById('statusBadge').className = 'status-badge crit';
+    document.getElementById('statusLabel').textContent = 'Offline';
+    return;
+  }
+
+  document.getElementById('lastUpdated').textContent = data.timestamp || '--';
+
+  const cpu = data.cpu ?? 0;
+  const mem = data.memory ?? 0;
+  const disk = data.disks && data.disks.C ? data.disks.C : 0;
+  const procs = data.processes ?? 0;
+
+  // CPU
+  document.getElementById('cpuVal').textContent = cpu;
+  document.getElementById('cpuSub').textContent = data.cpuModel || '';
+  document.getElementById('cpuBar').style.width = cpu + '%';
+  document.getElementById('cpuBar').className = 'bar-fill ' + getBarClass(cpu, 70, 90);
+
+  // Memory
+  document.getElementById('memVal').textContent = mem;
+  const memFree = data.memoryFreeGB ? data.memoryFreeGB + ' GB free' : '';
+  document.getElementById('memSub').textContent = memFree;
+  document.getElementById('memBar').style.width = mem + '%';
+  document.getElementById('memBar').className = 'bar-fill ' + getBarClass(mem, 80, 92);
+
+  // Disk
+  document.getElementById('diskVal').textContent = disk;
+  const diskFree = data.disks && data.disks.C ? (100 - disk) + '% free' : '';
+  document.getElementById('diskSub').textContent = diskFree;
+  document.getElementById('diskBar').style.width = disk + '%';
+  document.getElementById('diskBar').className = 'bar-fill ' + getBarClass(disk, 85, 95);
+
+  // Processes
+  document.getElementById('procVal').textContent = procs;
+  document.getElementById('procBar').style.width = Math.min(procs / 3, 100) + '%';
+
+  // Status badge
+  const badge = document.getElementById('statusBadge');
+  const label = document.getElementById('statusLabel');
+  const maxVal = Math.max(cpu, mem, disk);
+  if (maxVal >= 90 || maxVal >= 92) {
+    badge.className = 'status-badge crit';
+    label.textContent = 'Critical';
+  } else if (maxVal >= 70 || maxVal >= 80) {
+    badge.className = 'status-badge warn';
+    label.textContent = 'Warning';
+  } else {
+    badge.className = 'status-badge ok';
+    label.textContent = 'Healthy';
+  }
+
+  // Alerts
+  renderAlerts(data.alerts);
+  renderTopProcesses(data.topCpu, data.topMem);
+}
+
+function renderAlerts(alerts) {
+  const list = document.getElementById('alertList');
+  const count = document.getElementById('alertCount');
+  if (!alerts || alerts.length === 0) {
+    list.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle" style="color:var(--green)"></i><p>No alerts</p></div>';
+    count.textContent = '0';
+    return;
+  }
+  count.textContent = alerts.length;
+  list.innerHTML = alerts.slice(-20).reverse().map(a => {
+    const isCrit = a.level === 'CRITICAL' || a.level === 'critical' || (a.level || '').toLowerCase().includes('crit');
+    const iconClass = isCrit ? 'crit' : 'warn';
+    return '<div class="alert-item"><span class="icon ' + iconClass + '"></span><div class="msg"><div class="title">' + a.metric + ' at ' + a.value + '</div><div class="desc">' + (a.remediation || a.level) + '</div></div><span class="time">' + (a.timestamp || '') + '</span></div>';
+  }).join('');
+}
+
+function renderTopProcesses(cpuList, memList) {
+  const cpuWrap = document.getElementById('topCpuList');
+  const memWrap = document.getElementById('topMemList');
+  document.getElementById('cpuProcCount').textContent = (cpuList && cpuList.length) || 0;
+  document.getElementById('memProcCount').textContent = (memList && memList.length) || 0;
+
+  if (cpuList && cpuList.length) {
+    cpuWrap.innerHTML = '<table><thead><tr><th>Process</th><th style="text-align:right">CPU %</th></tr></thead><tbody>' +
+      cpuList.map(p => '<tr><td>' + p.name + '</td><td style="text-align:right">' + p.value + '</td></tr>').join('') +
+      '</tbody></table>';
+  } else {
+    cpuWrap.innerHTML = '<div class="empty-state"><p>No data</p></div>';
+  }
+
+  if (memList && memList.length) {
+    memWrap.innerHTML = '<table><thead><tr><th>Process</th><th style="text-align:right">MB</th></tr></thead><tbody>' +
+      memList.map(p => '<tr><td>' + p.name + '</td><td style="text-align:right">' + p.value + '</td></tr>').join('') +
+      '</tbody></table>';
+  } else {
+    memWrap.innerHTML = '<div class="empty-state"><p>No data</p></div>';
+  }
+}
+
+async function scanDuplicates() {
+  const scanBtn = document.getElementById('scanBtn');
+  const progress = document.getElementById('scanProgress');
+  const wrap = document.getElementById('duplicatesWrap');
+  const status = document.getElementById('scanStatus');
+
+  scanBtn.disabled = true;
+  scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+  progress.classList.add('active');
+
+  try {
+    const dir = prompt('Enter directory to scan for duplicates (e.g. C:\\Users\\Pratiksha):', 'C:\\Users\\Pratiksha');
+    if (!dir) { scanBtn.disabled = false; scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan Now'; progress.classList.remove('active'); return; }
+
+    status.textContent = 'Scanning ' + dir + ' ...';
+    const res = await fetch('/api/duplicates?dir=' + encodeURIComponent(dir));
+    const data = await res.json();
+
+    dupResults = data.duplicates || [];
+    renderDuplicates(dupResults);
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:var(--red)"></i><p>Scan failed: ' + e.message + '</p></div>';
+  }
+
+  scanBtn.disabled = false;
+  scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan Now';
+  progress.classList.remove('active');
+}
+
+function renderDuplicates(dups) {
+  const wrap = document.getElementById('duplicatesWrap');
+  const count = document.getElementById('dupCount');
+  const size = document.getElementById('dupSize');
+  const cleanupBtn = document.getElementById('cleanupBtn');
+
+  if (!dups || dups.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle" style="color:var(--green)"></i><p>No duplicates found</p></div>';
+    count.textContent = '0';
+    size.textContent = '0 GB';
+    cleanupBtn.style.display = 'none';
+    return;
+  }
+
+  let totalSize = 0;
+  let html = '<table><thead><tr><th style="width:30px"></th><th>File</th><th>Size</th><th>Duplicates</th><th>Location</th></tr></thead><tbody>';
+  dups.forEach((g, gi) => {
+    g.files.forEach((f, fi) => {
+      totalSize += f.size || 0;
+      const dupLabel = fi === 0 ? '<span class="badge badge-ok">Original</span>' : '<span class="badge badge-warn">Duplicate</span>';
+      html += '<tr>' +
+        '<td class="checkbox-wrap">' + (fi > 0 ? '<input type="checkbox" class="dup-cb" data-group="' + gi + '" data-idx="' + fi + '" />' : '') + '</td>' +
+        '<td><strong>' + f.name + '</strong><span class="path">' + f.path + '</span></td>' +
+        '<td><span class="file-size">' + formatBytes(f.size) + '</span></td>' +
+        '<td>' + dupLabel + '</td>' +
+        '<td>' + (fi === 0 ? 'Keep' : '<span style="color:var(--red)">Delete candidate</span>') + '</td>' +
+        '</tr>';
+    });
+  });
+  html += '</tbody></table>';
+
+  wrap.innerHTML = html;
+  count.textContent = dups.length + ' groups';
+  size.textContent = formatBytes(totalSize);
+  cleanupBtn.style.display = 'inline-flex';
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function confirmCleanup() {
+  const checked = document.querySelectorAll('.dup-cb:checked');
+  if (checked.length === 0) {
+    alert('Select duplicate files to clean first.');
+    return;
+  }
+
+  let total = 0;
+  checked.forEach(cb => total += (dupResults[parseInt(cb.dataset.group)]?.files[parseInt(cb.dataset.idx)]?.size || 0));
+  document.getElementById('cleanupSummary').innerHTML = '<strong>' + checked.length + ' file(s) selected</strong><br>Space to reclaim: ' + formatBytes(total);
+  document.getElementById('cleanupModal').classList.add('open');
+}
+
+async function executeCleanup() {
+  const checked = document.querySelectorAll('.dup-cb:checked');
+  const paths = [];
+  checked.forEach(cb => {
+    const g = dupResults[parseInt(cb.dataset.group)];
+    if (g) paths.push(g.files[parseInt(cb.dataset.idx)].path);
+  });
+
+  try {
+    const res = await fetch('/api/cleanup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: paths })
+    });
+    const data = await res.json();
+    alert(data.message || 'Cleaned ' + data.deleted + ' files');
+    closeModal('cleanupModal');
+    scanDuplicates();
+  } catch (e) {
+    alert('Cleanup failed: ' + e.message);
+  }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="' + name + '"]').classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.getElementById('tab-' + name).style.display = 'block';
+}
+
+function changeInterval(sec) {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshNow, sec * 1000);
+}
+
+function refreshNow() {
+  fetchData().then(updateDashboard);
+}
+
+// Init
+changeInterval(10);
+refreshNow();
+</script>
+</body>
+</html>

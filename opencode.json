@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "monitoring-alerting": {
+      "description": "System resource monitoring and alerting agent. Tracks CPU, memory, disk, network, and processes with threshold-based alerts and remediation.",
+      "mode": "all",
+      "model": "anthropic/claude-sonnet-4-6",
+      "permission": {
+        "bash": {
+          "wmic *": "allow",
+          "Get-*": "allow",
+          "powershell *": "allow",
+          "*": "ask"
+        }
+      }
+    }
+  },
+  "skills": {
+    "paths": [".opencode/skills"]
+  }
+}

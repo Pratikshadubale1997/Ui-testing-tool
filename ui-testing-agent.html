@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UI Testing Agent</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0f172a; --surface: #1e293b; --surface-2: #334155;
+      --border: #475569; --text: #f1f5f9; --text-secondary: #94a3b8;
+      --primary: #3b82f6; --primary-dark: #2563eb;
+      --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+      --danger-bg: rgba(239,68,68,0.12); --warning-bg: rgba(245,158,11,0.12); --success-bg: rgba(34,197,94,0.12);
+      --radius: 10px; --radius-lg: 16px; --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+    
+    /* Top Bar */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .topbar .logo { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .topbar .logo span { color: var(--primary); }
+    .topbar .logo small { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+    .search-box {
+      flex: 1;
+      display: flex;
+      gap: 8px;
+      min-width: 300px;
+    }
+    .search-box input {
+      flex: 1;
+      padding: 12px 18px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      font-family: inherit;
+      transition: 0.2s;
+    }
+    .search-box input:focus { border-color: var(--primary); }
+    .search-box button {
+      padding: 12px 28px;
+      background: var(--primary);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: 0.2s;
+    }
+    .search-box button:hover { background: var(--primary-dark); }
+    .search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.idle { background: var(--text-secondary); }
+    .status-dot.analyzing { background: var(--warning); animation: pulse 0.8s infinite; }
+    .status-dot.done { background: var(--success); }
+    .status-dot.error { background: var(--danger); }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Progress bar */
+    .progress-bar {
+      height: 3px;
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--success));
+      transition: width 0.3s;
+    }
+
+    /* Content Layout */
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 20px 24px;
+      height: calc(100vh - 80px);
+    }
+    @media (max-width: 900px) {
+      .content { grid-template-columns: 1fr; height: auto; }
+    }
+
+    /* Dashboard Panel */
+    .panel {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .panel-body::-webkit-scrollbar { width: 6px; }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 3px; }
+
+    /* Stats */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    .stat-card { background: var(--surface-2); border-radius: var(--radius); padding: 14px; text-align: center; }
+    .stat-card .num { font-size: 28px; font-weight: 800; }
+    .stat-card .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .stat-card.total .num { color: var(--text); }
+    .stat-card.fixed .num { color: var(--success); }
+    .stat-card.warning .num { color: var(--warning); }
+    .stat-card.open .num { color: var(--danger); }
+
+    /* Filters */
+    .issue-filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .issue-filters button { padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px; background: transparent; color: var(--text-secondary); font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; }
+    .issue-filters button:hover { border-color: var(--primary); color: var(--primary); }
+    .issue-filters button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Issue List */
+    .issue-list { display: flex; flex-direction: column; gap: 8px; }
+    .issue-item {
+      background: var(--surface-2); border-radius: var(--radius); padding: 14px 16px;
+      border-left: 4px solid var(--border);
+    }
+    .issue-item.severity-high { border-left-color: var(--danger); }
+    .issue-item.severity-medium { border-left-color: var(--warning); }
+    .issue-item.severity-low { border-left-color: var(--success); }
+    .issue-item.fixed { opacity: 0.6; }
+    .issue-item.fixed .issue-title { text-decoration: line-through; }
+    .issue-item.warning { border-left-color: var(--danger) !important; background: rgba(239,68,68,0.08); }
+    .issue-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .issue-title { font-size: 13px; font-weight: 600; flex: 1; }
+    .issue-severity {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 4px;
+    }
+    .severity-high .issue-severity { background: var(--danger-bg); color: var(--danger); }
+    .severity-medium .issue-severity { background: var(--warning-bg); color: var(--warning); }
+    .severity-low .issue-severity { background: var(--success-bg); color: var(--success); }
+    .issue-desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+    .issue-explanation { font-size: 12px; color: var(--text); margin-top: 6px; padding: 8px 10px; background: var(--surface); border-radius: 6px; line-height: 1.5; }
+    .issue-suggestion { font-size: 12px; color: var(--success); margin-top: 4px; padding: 6px 10px; display: flex; align-items: flex-start; gap: 6px; }
+    .issue-suggestion::before { content: '💡'; font-size: 13px; }
+    .issue-category {
+      font-size: 10px; color: var(--text-secondary); margin-top: 2px; display: flex; gap: 4px;
+    }
+    .issue-category span { background: var(--surface); padding: 1px 8px; border-radius: 4px; }
+    .issue-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .issue-actions button {
+      padding: 6px 12px; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .btn-fix { background: var(--primary); color: #fff; }
+    .btn-fix:hover { background: var(--primary-dark); }
+    .btn-recheck { background: var(--warning); color: #000; }
+    .btn-fix-all {
+      background: var(--success); color: #000; padding: 8px 16px; border: none; border-radius: 6px;
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .btn-fix-all:hover { opacity: 0.85; }
+    .warning-badge { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 11px; color: var(--danger); }
+
+    /* Interactive Preview */
+    .preview-toolbar {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      background: var(--surface-2);
+      flex-shrink: 0;
+    }
+    .preview-toolbar input {
+      padding: 5px 8px;
+      border: 2px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 11px;
+      outline: none;
+      font-family: inherit;
+      transition: 0.15s;
+    }
+    .preview-toolbar input:focus { border-color: var(--primary); }
+    .preview-toolbar input::placeholder { color: var(--text-secondary); }
+    .preview-toolbar .pv-url { flex: 3; min-width: 100px; }
+    .preview-toolbar .pv-cred { flex: 1; min-width: 70px; }
+    .preview-toolbar button {
+      padding: 5px 10px;
+      background: var(--primary);
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .preview-toolbar button:hover { opacity: 0.85; }
+    .preview-frame-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--gray-900);
+      overflow: hidden;
+      padding: 12px;
+      position: relative;
+    }
+    .preview-frame-wrap .pv-img {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+      object-fit: contain;
+      background: #fff;
+      display: none;
+    }
+    .preview-frame-wrap .pv-img.show { display: block; }
+    .preview-frame-wrap .pv-spinner {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: none;
+      z-index: 2;
+    }
+    .preview-frame-wrap .pv-spinner.show { display: block; }
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    /* Empty */
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+    .empty-state h3 { font-size: 16px; color: var(--text); margin-bottom: 6px; }
+    .empty-state p { font-size: 13px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .tab-btn { padding: 12px 24px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; border-bottom: 2px solid transparent; transition: 0.2s; }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* Compare UI */
+    .compare-input { display: flex; flex-direction: column; gap: 8px; padding: 16px 24px; background: var(--surface); }
+    .compare-input textarea { width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; outline: none; resize: vertical; min-height: 80px; }
+    .compare-input textarea:focus { border-color: var(--primary); }
+    .compare-input .hint { font-size: 12px; color: var(--text-secondary); }
+    .compare-input .row { display: flex; gap: 8px; align-items: center; }
+
+    /* Comparison Results */
+    .comp-page-list { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .comp-page-item { background: var(--surface-2); border-radius: var(--radius); padding: 10px 14px; font-size: 12px; min-width: 120px; flex: 1; }
+    .comp-page-item .label { color: var(--text-secondary); font-size: 10px; text-transform: uppercase; }
+    .comp-page-item .val { color: var(--text); word-break: break-all; font-size: 11px; margin-top: 2px; }
+    .comp-card { background: var(--surface-2); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
+    .comp-card-header { padding: 12px 16px; background: var(--surface); font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .comp-card-body { padding: 12px 16px; }
+    .comp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .comp-table th { text-align: left; padding: 6px 8px; color: var(--text-secondary); font-weight: 500; border-bottom: 1px solid var(--border); }
+    .comp-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 11px; }
+    .comp-table td.diff { color: var(--danger); background: var(--danger-bg); }
+    .comp-table td.same { color: var(--success); }
+    .comp-screenshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .comp-screenshot-item { border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+    .comp-screenshot-item img { width: 100%; display: block; }
+    .comp-screenshot-item .label { padding: 6px 10px; font-size: 11px; color: var(--text-secondary); word-break: break-all; }
+
+    /* Toast */
+    .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 500; box-shadow: var(--shadow); transform: translateX(120%); transition: transform 0.3s; }
+    .toast.show { transform: translateX(0); }
+    .toast.success { background: var(--success); color: #000; }
+    .toast.warning { background: var(--warning); color: #000; }
+    .toast.error { background: var(--danger); color: #fff; }
+    .toast.info { background: var(--primary); color: #fff; }
+  </style>
+</head>
+<body>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="scan" onclick="switchTab('scan', this)">Single Scan</button>
+    <button class="tab-btn" data-tab="compare" onclick="switchTab('compare', this)">Compare Pages</button>
+    <button class="tab-btn" data-tab="screenshots" onclick="switchTab('screenshots', this)">Screenshots</button>
+  </div>
+
+  <!-- ─── SINGLE SCAN VIEW ──────────────────────────────────────────────── -->
+  <div id="scanView">
+    <div class="topbar">
+      <div class="logo">UI <span>Agent</span> <small>UI Testing</small></div>
+      <div class="search-box">
+        <input type="url" id="urlInput" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" />
+        <button id="analyzeBtn">Analyze</button>
+        <button id="scanAllBtn" style="background:var(--success);color:#000;">Scan All Pages</button>
+      </div>
+      <div class="row" style="gap:6px;flex:1;min-width:280px;">
+        <input id="scanUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
+        <input id="scanPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
+      </div>
+      <div class="status-badge">
+        <span class="status-dot idle" id="statusDot"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+
+    <div class="content">
+      <div class="panel">
+        <div class="panel-header">
+          <span>Dashboard</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-secondary);" id="urlDisplay"></span>
+        </div>
+        <div class="panel-body" id="dashboard">
+          <div class="empty-state" id="emptyState">
+            <h3 id="emptyTitle">Ready to scan</h3>
+            <p id="emptyText">Enter a URL above and click <strong>Analyze</strong>. The agent loads the page in a headless browser and checks for UI issues like poor contrast, missing alt text, small fonts, and more.</p>
+            <div id="analysisStatus" style="display:none;margin-top:12px;font-size:13px;color:var(--primary);"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span>Screenshot Preview</span>
+          <span id="screenshotTitle" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
+        </div>
+        <div class="panel-body" id="screenshotPanel" style="padding:0;display:flex;flex-direction:column;">
+          <div class="preview-frame-wrap" id="previewWrap">
+            <div class="pv-spinner" id="pvSpinner"></div>
+            <img class="pv-img" id="pvImg" alt="Screenshot" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan All Pages Results -->
+    <div id="scanAllResults" style="display:none;padding:20px 24px;">
+      <div style="margin-bottom:16px;">
+        <strong style="font-size:15px;">Page-wise Results</strong>
+        <span id="scanAllSummary" style="font-size:12px;color:var(--text-secondary);margin-left:8px;"></span>
+      </div>
+      <div id="scanAllDashboard"></div>
+    </div>
+  </div>
+
+  <!-- ─── COMPARE VIEW ──────────────────────────────────────────────────── -->
+  <div id="compareView" style="display:none;">
+    <div class="compare-input">
+      <div class="row">
+        <span style="font-weight:600;font-size:14px;">Compare Pages</span>
+        <button id="compareBtn" style="padding:10px 24px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
+      </div>
+      <textarea id="compareUrls" placeholder="Enter URLs, one per line&#10;https://example.com/page1&#10;https://example.com/page2&#10;https://example.com/page3"></textarea>
+      <div class="row" style="margin-top:8px;gap:8px;">
+        <input id="loginUser" type="text" placeholder="Username (if login required)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+        <input id="loginPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+      </div>
+      <div class="hint">Enter at least 2 URLs. The agent extracts visual properties (colors, fonts, sizes, spacing) from common elements and reports inconsistencies. If pages require login, provide credentials above.</div>
+      <div id="compareStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
+    </div>
+    <div class="content" style="height:auto;min-height:calc(100vh - 200px);">
+      <div class="panel" style="grid-column:1/-1;">
+        <div class="panel-header">
+          <span>Comparison Results</span>
+          <span id="compSummary" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
+        </div>
+        <div class="panel-body" id="compDashboard">
+          <div class="empty-state">
+            <h3>Ready to compare</h3>
+            <p>Enter at least 2 URLs above and click <strong>Compare</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SCREENSHOTS VIEW ──────────────────────────────────────────────── -->
+  <div id="screenshotsView" style="display:none;">
+    <div class="compare-input">
+      <div class="row">
+        <span style="font-weight:600;font-size:14px;">Compare Screenshots</span>
+        <button id="ssCompareBtn" style="padding:10px 24px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
+      </div>
+      <div class="row" style="gap:12px;margin-top:12px;">
+        <div style="flex:1;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Screenshot 1</label>
+          <input type="file" id="ssFile1" accept="image/png,image/jpeg" style="width:100%;padding:8px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;" />
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Screenshot 2</label>
+          <input type="file" id="ssFile2" accept="image/png,image/jpeg" style="width:100%;padding:8px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;" />
+        </div>
+      </div>
+      <div class="hint">Upload two screenshots of your pages. The tool displays them side by side and provides general UI improvement suggestions.</div>
+      <div id="ssStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
+    </div>
+    <div class="content" style="height:auto;min-height:calc(100vh - 200px);">
+      <div class="panel" style="grid-column:1/-1;">
+        <div class="panel-header">
+          <span>Screenshot Comparison</span>
+          <span id="ssSummary" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
+        </div>
+        <div class="panel-body" id="ssDashboard">
+          <div class="empty-state">
+            <h3>Upload screenshots</h3>
+            <p>Upload two screenshots of your pages to compare them visually and get best-practice suggestions.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const state = { url: '', issues: [], fixes: new Map(), fixedIssues: new Set(), warnedIssues: new Set(), failedFixes: new Set(), currentFilter: 'all' };
+    const $ = id => document.getElementById(id);
+    const urlInput = $('urlInput'), analyzeBtn = $('analyzeBtn');
+    const dashboard = $('dashboard'), emptyState = $('emptyState');
+    const emptyTitle = $('emptyTitle'), emptyText = $('emptyText');
+    const analysisStatus = $('analysisStatus');
+    const statusText = $('statusText'), statusDot = $('statusDot');
+    const progressFill = $('progressFill');
+    const pvImg = $('pvImg'), pvSpinner = $('pvSpinner');
+    const urlDisplay = $('urlDisplay');
+    const toastContainer = $('toastContainer');
+
+    function showToast(msg, type = 'info') {
+      const el = document.createElement('div');
+      el.className = 'toast ' + type;
+      el.textContent = msg;
+      toastContainer.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3000);
+    }
+    function setStatus(text, type = 'idle') { statusText.textContent = text; statusDot.className = 'status-dot ' + type; }
+    function setProgress(pct) { progressFill.style.width = pct + '%'; }
+
+    // ─── API CALLS ─────────────────────────────────────────────────────────
+    async function analyzeUrl(url) {
+      const username = document.getElementById('scanUser').value.trim();
+      const password = document.getElementById('scanPass').value.trim();
+      const body = { url };
+      if (username && password) { body.username = username; body.password = password; }
+
+      const resp = await fetch('/analyze?' + Date.now(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error || 'HTTP ' + resp.status); }
+      return resp.json();
+    }
+    async function recheckUrl(url, fixes) {
+      const username = document.getElementById('scanUser').value.trim();
+      const password = document.getElementById('scanPass').value.trim();
+      const body = { url, fixes };
+      if (username && password) { body.username = username; body.password = password; }
+
+      const resp = await fetch('/recheck?' + Date.now(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) throw new Error('Re-check failed');
+      return resp.json();
+    }
+
+    // ─── ANALYSIS ──────────────────────────────────────────────────────────
+    async function runAnalysis() {
+      let url = urlInput.value.trim();
+      if (!url) { showToast('Please enter a URL', 'warning'); return; }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'https://' + url; urlInput.value = url; }
+
+      analyzeBtn.disabled = true;
+      analyzeBtn.textContent = 'Analyzing...';
+      state.issues = []; state.fixes.clear(); state.fixedIssues.clear(); state.warnedIssues.clear(); state.failedFixes.clear(); state.url = '';
+
+      // Clear old screenshot and preview
+      pvImg.src = '';
+      pvImg.classList.remove('show');
+      pvSpinner.classList.add('show');
+
+      emptyState.style.display = 'block';
+      emptyTitle.textContent = 'Analyzing...';
+      emptyText.textContent = 'Loading page in headless browser...';
+      analysisStatus.style.display = 'block';
+      analysisStatus.textContent = 'Starting...';
+      setStatus('Analyzing', 'analyzing');
+      setProgress(10);
+
+      try {
+        analysisStatus.textContent = 'Loading: ' + url;
+        setProgress(30);
+        const result = await analyzeUrl(url);
+        setProgress(70);
+        analysisStatus.textContent = 'Processing results...';
+
+        state.url = result.url;
+        state.issues = result.issues || [];
+        urlDisplay.textContent = result.url;
+
+        // Show screenshot in preview
+        if (result.screenshot) {
+          pvImg.src = 'data:image/png;base64,' + result.screenshot;
+          pvImg.classList.add('show');
+        }
+
+        setProgress(100);
+        analysisStatus.style.display = 'none';
+        emptyState.style.display = 'none';
+        renderDashboard();
+        setStatus(state.issues.length + ' issues', state.issues.length ? 'done' : 'idle');
+        showToast('Complete: ' + state.issues.length + ' issues found', state.issues.length ? 'warning' : 'success');
+      } catch (err) {
+        emptyTitle.textContent = 'Failed';
+        emptyText.textContent = err.message;
+        analysisStatus.textContent = 'Make sure the server is running (node server.js)';
+        analysisStatus.style.color = 'var(--danger)';
+        setStatus('Error', 'error');
+        showToast(err.message, 'error');
+      } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = 'Analyze';
+        setTimeout(() => setProgress(0), 1000);
+      }
+    }
+
+    // ─── RENDER ────────────────────────────────────────────────────────────
+    function renderDashboard() {
+      const issues = state.issues;
+      const total = issues.length;
+      const fixed = state.fixedIssues.size;
+      const open = total - fixed;
+      const warnings = state.warnedIssues.size;
+      const high = issues.filter(i => i.severity === 'high').length;
+      const med = issues.filter(i => i.severity === 'medium').length;
+      const low = issues.filter(i => i.severity === 'low').length;
+
+      // No issues found - show success message
+      if (total === 0) {
+        dashboard.innerHTML =
+          '<div style="text-align:center;padding:60px 20px;">' +
+            '<div style="font-size:48px;margin-bottom:16px;">&#10003;</div>' +
+            '<h3 style="font-size:20px;font-weight:700;color:var(--success);margin-bottom:8px;">No Issues Found</h3>' +
+            '<p style="font-size:14px;color:var(--text-secondary);max-width:400px;margin:0 auto;">This page looks clean! No UI consistency issues were detected.</p>' +
+          '</div>';
+        return;
+      }
+
+      let html = '<div class="stats-row">' +
+        '<div class="stat-card total"><div class="num">' + total + '</div><div class="label">Issues</div></div>' +
+        '<div class="stat-card open"><div class="num">' + open + '</div><div class="label">Open</div></div>' +
+        '<div class="stat-card fixed"><div class="num">' + fixed + '</div><div class="label">Fixed</div></div>' +
+        '<div class="stat-card warning"><div class="num">' + warnings + '</div><div class="label">Warnings</div></div>' +
+        '</div>';
+
+      // Fix all button if there are open issues
+      if (open > 0) {
+        html += '<div style="margin-bottom:12px;"><button class="btn-fix-all" onclick="fixAll()">Fix All (' + open + ' open issues)</button></div>';
+      }
+
+      html += '<div class="issue-filters">' +
+        '<button class="active" data-filter="all" onclick="filterIssues(\'all\', this)">All (' + total + ')</button>' +
+        '<button data-filter="high" onclick="filterIssues(\'high\', this)" style="border-color:var(--danger);color:var(--danger)">High (' + high + ')</button>' +
+        '<button data-filter="medium" onclick="filterIssues(\'medium\', this)" style="border-color:var(--warning);color:var(--warning)">Med (' + med + ')</button>' +
+        '<button data-filter="low" onclick="filterIssues(\'low\', this)" style="border-color:var(--success);color:var(--success)">Low (' + low + ')</button>' +
+        '<button data-filter="fixed" onclick="filterIssues(\'fixed\', this)">Fixed (' + fixed + ')</button>' +
+        '<button data-filter="open" onclick="filterIssues(\'open\', this)">Open (' + open + ')</button>' +
+        '</div><div class="issue-list">';
+
+      const filtered = getFilteredIssues();
+      if (filtered.length === 0) {
+        html += '<div class="empty-state"><h3>No issues</h3><p>No issues match this filter.</p></div>';
+      } else {
+        filtered.forEach(issue => {
+          const isFixed = state.fixedIssues.has(issue.id);
+          const isWarned = state.warnedIssues.has(issue.id);
+          const isFailed = state.failedFixes.has(issue.id);
+          const help = getIssueHelp(issue);
+          html += '<div class="issue-item severity-' + issue.severity + (isFixed ? ' fixed' : '') + (isWarned || isFailed ? ' warning' : '') + '">' +
+            '<div class="issue-header"><span class="issue-title">' + issue.name + '</span>' +
+            (isFixed
+              ? '<span class="issue-severity" style="background:var(--success-bg);color:var(--success);">Resolved</span>'
+              : '<span class="issue-severity">' + issue.severity + '</span>') +
+            '</div>' +
+            '<div class="issue-desc">' + issue.detail + '</div>' +
+            (help.desc ? '<div class="issue-explanation">' + help.desc + '</div>' : '') +
+            (help.suggestion ? '<div class="issue-suggestion">' + help.suggestion + '</div>' : '') +
+            '<div class="issue-category">' +
+            (issue.context ? '<span style="color:var(--primary);font-weight:600;">Card: ' + escapeHtml(issue.context) + '</span>' : '') +
+            '<span>' + issue.category + '</span><span>' + issue.selector + '</span></div>' +
+            '<div class="issue-actions">';
+          if (isFixed) {
+            html += '<button class="btn-fix" onclick="deleteIssue(\'' + issue.id + '\')">Delete from list</button>';
+            html += '<button class="btn-recheck" onclick="recheckIssue(\'' + issue.id + '\')">Re-check</button>';
+          } else if (isFailed) {
+            html += '<button class="btn-fix" onclick="applyFix(\'' + issue.id + '\')">Apply Fix</button>';
+            html += '<button class="btn-recheck" onclick="recheckIssue(\'' + issue.id + '\')">Re-check</button>';
+          } else {
+            html += '<button class="btn-fix" onclick="applyFix(\'' + issue.id + '\')">Apply Fix</button>';
+          }
+          html += '</div>';
+          if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
+          if (isFailed && !isFixed) html += '<div class="warning-badge">&#9888; Fix not verified - issue still present on the URL</div>';
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+      dashboard.innerHTML = html;
+    }
+
+    function getIssueHelp(issue) {
+      const helpMap = {
+        'contrast': {
+          desc: 'The text color and background color have low contrast, making text hard to read.',
+          suggestion: 'Increase the contrast ratio between text and background to at least 4.5:1 using a contrast checker tool.'
+        },
+        'missing-alt': {
+          desc: 'This image is missing an alt attribute, which is required for proper page structure.',
+          suggestion: 'Add an alt attribute with a short description of the image content. For decorative images, use alt="".'
+        },
+        'small-font': {
+          desc: 'This text is smaller than 12 pixels, which can be difficult to read on mobile devices.',
+          suggestion: 'Increase the font size to at least 12px. For body text, use 14px or 16px for better readability.'
+        },
+        'missing-focus': {
+          desc: 'This interactive element has no visible focus indicator for keyboard navigation.',
+          suggestion: 'Add an outline or box-shadow on :focus, e.g. "outline: 2px solid blue".'
+        },
+        'touch-target': {
+          desc: 'This button or link is smaller than 44x44 pixels, making it hard to tap on touch screens.',
+          suggestion: 'Increase the element size to at least 44x44 pixels by adding padding.'
+        },
+        'missing-hover': {
+          desc: 'This clickable element has no hover effect, making it feel unresponsive.',
+          suggestion: 'Add a hover effect such as color change, underline, or background change.'
+        },
+        'missing-form-labels': {
+          desc: 'This form field has no associated label, making it unclear what input is expected.',
+          suggestion: 'Add a label element with a for attribute matching the input id.'
+        },
+        'no-responsive': {
+          desc: 'This page is missing the viewport meta tag and may not scale properly on mobile.',
+          suggestion: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> in the head section.'
+        },
+        'missing-aria': {
+          desc: 'This icon-only element has no text label, making its purpose unclear.',
+          suggestion: 'Add an aria-label attribute describing the action, e.g. aria-label="Search".'
+        },
+        'inconsistent-font-size': {
+          desc: 'Similar elements (like all h1 or all p tags) use different font sizes, breaking visual consistency.',
+          suggestion: 'Use consistent font sizes for the same heading/paragraph level across all pages.'
+        },
+        'inconsistent-font-weight': {
+          desc: 'Font weight varies across similar elements, making the design feel inconsistent.',
+          suggestion: 'Apply the same font-weight to all elements of the same type (e.g., all buttons bold).'
+        },
+        'inconsistent-input-style': {
+          desc: 'Input fields or form controls have mismatched styling (size, padding, border-radius).',
+          suggestion: 'Standardize input, textarea, and select styling across your forms.'
+        },
+        'inconsistent-button-style': {
+          desc: 'Buttons on the page have inconsistent sizes, padding, or border-radius.',
+          suggestion: 'Use a single button style (size, shape, padding) for all primary actions.'
+        },
+        'inconsistent-section-padding': {
+          desc: 'Different sections use different padding values, creating uneven spacing.',
+          suggestion: 'Normalize section padding so all sections have equal top/bottom spacing.'
+        },
+        'inconsistent-card-margin': {
+          desc: 'Cards or list items have different margins between them, making layouts look uneven.',
+          suggestion: 'Apply uniform margins between cards and list items throughout the page.'
+        },
+        'missing-currency': {
+          desc: 'A price or amount is shown without a currency symbol ($, Rs, etc.), causing confusion.',
+          suggestion: 'Add the appropriate currency symbol before the amount (e.g., $100 instead of 100).'
+        },
+        'inconsistent-line-height': {
+          desc: 'Line heights vary across paragraphs and text elements, reducing readability.',
+          suggestion: 'Use a consistent line-height (e.g., 1.5 for body text) across all text content.'
+        },
+        'inconsistent-text-align': {
+          desc: 'Text alignment is inconsistent across similar elements (e.g., some left, some center).',
+          suggestion: 'Standardize text alignment — keep body text left-aligned and center only for headings where intentional.'
+        },
+        'inconsistent-link-color': {
+          desc: 'Links on the page use different colors, making the navigation feel disjointed.',
+          suggestion: 'Use a single link color throughout the page or app.'
+        },
+        'inconsistent-header-padding': {
+          desc: 'Headers/navbars have inconsistent padding, breaking the top layout uniformity.',
+          suggestion: 'Standardize header padding (top, bottom, left, right) across all pages.'
+        },
+        'inconsistent-footer-padding': {
+          desc: 'Footers have inconsistent padding, making the bottom layout feel uneven.',
+          suggestion: 'Apply uniform footer padding across all pages for consistent spacing.'
+        }
+      };
+      const match = helpMap[issue.ruleId];
+      if (match) return match;
+      return { desc: '', suggestion: '' };
+    }
+    function getFilteredIssues() {
+      switch (state.currentFilter) {
+        case 'high': return state.issues.filter(i => i.severity === 'high');
+        case 'medium': return state.issues.filter(i => i.severity === 'medium');
+        case 'low': return state.issues.filter(i => i.severity === 'low');
+        case 'fixed': return state.issues.filter(i => state.fixedIssues.has(i.id));
+        case 'open': return state.issues.filter(i => !state.fixedIssues.has(i.id));
+        default: return state.issues;
+      }
+    }
+    function filterIssues(filter, btn) {
+      state.currentFilter = filter;
+      document.querySelectorAll('.issue-filters button').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      renderDashboard();
+    }
+
+    // ─── ACTIONS ───────────────────────────────────────────────────────────
+    // Re-checks the SAME url for a given issue selector and reports status.
+    // Returns true if the issue is no longer present (resolved).
+    async function verifyFix(issue) {
+      try {
+        const fixes = [{ selector: issue.selector, ruleId: issue.ruleId, fixCss: issue.fixCss || '' }];
+        const result = await recheckUrl(state.url, fixes);
+        const stillPresent = result.stillPresent || [];
+        if (stillPresent.includes(issue.selector)) {
+          state.failedFixes.add(issue.id);
+          state.warnedIssues.add(issue.id);
+          state.fixedIssues.delete(issue.id);
+          return false;
+        } else {
+          state.fixedIssues.add(issue.id);
+          state.failedFixes.delete(issue.id);
+          state.warnedIssues.delete(issue.id);
+          return true;
+        }
+      } catch (err) {
+        state.failedFixes.add(issue.id);
+        showToast('Fix verification failed: ' + err.message, 'error');
+        return false;
+      }
+    }
+
+    // Apply fix -> immediately re-check the same URL.
+    // Resolved: shows "Resolved" + "Delete from list".
+    // Not fixed: shows "Re-check" so it can be verified again.
+    async function applyFix(issueId) {
+      const issue = state.issues.find(i => i.id === issueId);
+      if (!issue || state.fixedIssues.has(issueId)) return;
+      showToast('Applying fix and re-checking on ' + state.url + '...', 'info');
+      const resolved = await verifyFix(issue);
+      showToast(resolved ? issue.name + ': Resolved!' : issue.name + ': still present, use Re-check', resolved ? 'success' : 'warning');
+      renderDashboard();
+    }
+    async function fixAll() {
+      const open = state.issues.filter(i => !state.fixedIssues.has(i.id));
+      if (open.length === 0) return;
+      showToast('Fixing & verifying ' + open.length + ' issues...', 'info');
+      let resolved = 0;
+      for (const issue of open) {
+        if (await verifyFix(issue)) resolved++;
+      }
+      renderDashboard();
+      showToast('Resolved ' + resolved + ' of ' + open.length + ' issues', resolved === open.length ? 'success' : 'warning');
+    }
+    async function recheckIssue(issueId) {
+      const issue = state.issues.find(i => i.id === issueId);
+      if (!issue) return;
+      showToast('Re-checking...', 'info');
+      const resolved = await verifyFix(issue);
+      showToast(resolved ? issue.name + ': Resolved!' : 'Warning: ' + issue.name + ' still present!', resolved ? 'success' : 'warning');
+      renderDashboard();
+    }
+    function deleteIssue(issueId) {
+      state.issues = state.issues.filter(i => i.id !== issueId);
+      state.fixedIssues.delete(issueId);
+      state.warnedIssues.delete(issueId);
+      state.failedFixes.delete(issueId);
+      renderDashboard();
+      showToast('Issue removed from list', 'info');
+    }
+
+    // ─── TAB SWITCHING ─────────────────────────────────────────────────────
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('scanView').style.display = tab === 'scan' ? '' : 'none';
+      document.getElementById('compareView').style.display = tab === 'compare' ? '' : 'none';
+      document.getElementById('screenshotsView').style.display = tab === 'screenshots' ? '' : 'none';
+      // Reset scan-all results when switching tabs
+      if (tab === 'scan') {
+        document.querySelector('#scanView .content').style.display = '';
+        document.getElementById('scanAllResults').style.display = 'none';
+      }
+    }
+
+    // ─── COMPARE API ───────────────────────────────────────────────────────
+    async function compareUrls() {
+      const raw = document.getElementById('compareUrls').value.trim();
+      const urls = raw.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+      if (urls.length < 2) { showToast('Enter at least 2 URLs', 'warning'); return; }
+
+      const normalized = urls.map(u => u.startsWith('http') ? u : 'https://' + u);
+      const compStatus = document.getElementById('compareStatus');
+      const compDash = document.getElementById('compDashboard');
+      const username = document.getElementById('loginUser').value.trim();
+      const password = document.getElementById('loginPass').value.trim();
+
+      const body = { urls: normalized };
+      if (username && password) { body.username = username; body.password = password; }
+
+      compStatus.style.display = 'block';
+      compStatus.textContent = 'Loading ' + normalized.length + ' pages...';
+      document.getElementById('compareBtn').disabled = true;
+
+      try {
+        const resp = await fetch('/compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error || 'HTTP ' + resp.status); }
+        const data = await resp.json();
+        compStatus.textContent = 'Done';
+        renderComparison(data, normalized);
+      } catch (err) {
+        compStatus.textContent = 'Error: ' + err.message;
+        compStatus.style.color = 'var(--danger)';
+        showToast(err.message, 'error');
+      } finally {
+        document.getElementById('compareBtn').disabled = false;
+        setTimeout(() => { compStatus.style.display = 'none'; compStatus.style.color = 'var(--text-secondary)'; }, 3000);
+      }
+    }
+
+    function renderComparison(data, urls) {
+      const compDash = document.getElementById('compDashboard');
+      const { pages, comparisons, screenshots, suggestions = [] } = data;
+      const totalProps = comparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
+      document.getElementById('compSummary').textContent = totalProps + ' property differences across ' + pages.length + ' pages';
+
+      let html = '';
+
+      // Screenshots
+      if (screenshots && screenshots.length > 0) {
+        html += '<div style="margin-bottom:16px;"><strong style="font-size:13px;">Page Previews</strong></div>';
+        html += '<div class="comp-screenshot-grid">';
+        screenshots.forEach(ss => {
+          html += '<div class="comp-screenshot-item">';
+          if (ss.data) {
+            html += '<img src="data:image/png;base64,' + ss.data + '" alt="' + ss.url + '" />';
+          } else {
+            html += '<div style="padding:40px;text-align:center;color:var(--text-secondary);">Failed</div>';
+          }
+          html += '<div class="label">' + ss.url + '</div></div>';
+        });
+        html += '</div>';
+      }
+
+      if (comparisons.length === 0) {
+        html += '<div class="empty-state"><h3>No inconsistencies found</h3><p>All pages appear visually consistent for the checked element types.</p></div>';
+        if (suggestions.length > 0) {
+          html += '<div style="margin-top:20px;"><strong style="font-size:13px;">Suggestions</strong></div>';
+          suggestions.forEach(sug => {
+            const sevColor = sug.severity === 'high' ? 'var(--danger)' : sug.severity === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
+            html += '<div class="comp-card"><div class="comp-card-header"><span>' + sug.type.replace(/-/g, ' ') + '</span><span style="color:' + sevColor + ';font-weight:400;">' + sug.severity + '</span></div><div class="comp-card-body" style="font-size:12px;color:var(--text-primary);">' + escapeHtml(sug.suggestion) + '</div></div>';
+          });
+        }
+        compDash.innerHTML = html;
+        return;
+      }
+
+      html += '<div style="margin-bottom:16px;"><strong style="font-size:13px;">Visual Differences Across All Pages</strong></div>';
+
+      const propGroups = {
+        'Size': ['width', 'height', 'min-height', 'max-width', 'min-width', 'font-size', 'line-height', 'letter-spacing'],
+        'Color': ['color', 'background-color', 'opacity'],
+        'Spacing': ['padding', 'padding-top', 'padding-bottom', 'padding-left', 'padding-right', 'margin', 'margin-top', 'margin-bottom'],
+        'Typography': ['font-family', 'font-weight', 'text-align', 'text-transform'],
+        'Border': ['border', 'border-radius', 'outline', 'box-shadow']
+      };
+
+      function getPropGroup(prop) {
+        for (const [group, props] of Object.entries(propGroups)) {
+          if (props.includes(prop)) return group;
+        }
+        return 'Other';
+      }
+
+      function isColorVal(v) {
+        return /^#([0-9a-f]{3,8}|[0-9a-f]{6})$/i.test(v) || /^rgb/.test(v) || /^hsl/.test(v);
+      }
+
+      comparisons.forEach(comp => {
+        const typeLabel = comp.elementType.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
+        const propCount = Object.keys(comp.properties).length;
+        html += '<div class="comp-card">';
+        html += '<div class="comp-card-header"><span>' + typeLabel + '</span><span style="color:var(--danger);font-weight:400;">' + propCount + ' property differences across ' + comp.totalPages + ' pages</span></div>';
+        html += '<div class="comp-card-body">';
+
+        // Sample text
+        if (comp.sample && comp.sample.text) {
+          html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">Sample: "' + escapeHtml(comp.sample.text) + '"</div>';
+        }
+
+        // Get all unique URLs for this element type
+        const allUrls = [...new Set(pages.map(p => p.url))];
+
+        // Group properties by category
+        const grouped = {};
+        for (const [prop, info] of Object.entries(comp.properties)) {
+          const g = getPropGroup(prop);
+          if (!grouped[g]) grouped[g] = [];
+          grouped[g].push({ property: prop, info });
+        }
+
+        for (const [groupName, items] of Object.entries(grouped)) {
+          html += '<div style="font-size:11px;color:var(--primary);font-weight:600;margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.5px;">' + groupName + '</div>';
+          html += '<table class="comp-table"><tr><th>Property</th>';
+          allUrls.forEach(u => { html += '<th style="font-size:10px;">' + escapeHtml(u) + '</th>'; });
+          html += '</tr>';
+
+          items.forEach(({ property: prop, info }) => {
+            html += '<tr><td>' + prop + '</td>';
+            allUrls.forEach(u => {
+              const match = info.values.find(v => v.url === u);
+              const val = match && match.value ? match.value : '-';
+              const isDiff = match && match.value && match.value !== info.dominant;
+              const valEsc = escapeHtml(val);
+              const colorSwatch = isColorVal(val) ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + val + ';border:1px solid var(--border);vertical-align:middle;margin-right:3px;"></span>' : '';
+              html += '<td class="' + (isDiff ? 'diff' : 'same') + '">' + colorSwatch + valEsc + '</td>';
+            });
+            html += '</tr>';
+          });
+
+          html += '</table>';
+        }
+
+        html += '</div></div>';
+      });
+
+      // Page details — variants summary
+      html += '<div style="margin-top:20px;"><strong style="font-size:13px;">Element Variants Per Page</strong></div>';
+      html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">How many different visual styles exist per element type on each page (0 = all consistent).</div>';
+      html += '<table class="comp-table"><tr><th>Page</th>';
+      const allTypes = [...new Set(comparisons.map(c => c.elementType))];
+      allTypes.forEach(t => { html += '<th>' + t.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase()) + '</th>'; });
+      html += '</tr>';
+
+      pages.forEach(p => {
+        html += '<tr><td>' + escapeHtml(p.url) + '</td>';
+        allTypes.forEach(t => {
+          const variants = (p.elements && p.elements[t]) ? p.elements[t].variants : '-';
+          const count = (p.elements && p.elements[t]) ? p.elements[t].count : 0;
+          html += '<td>' + variants + ' <span style="color:var(--text-secondary)">(' + count + ')</span></td>';
+        });
+        html += '</tr>';
+      });
+
+      html += '</table>';
+
+      // Suggestions
+      if (data.suggestions && data.suggestions.length > 0) {
+        html += '<div style="margin-top:20px;"><strong style="font-size:13px;">Suggestions</strong></div>';
+        data.suggestions.forEach(sug => {
+          const sevColor = sug.severity === 'high' ? 'var(--danger)' : sug.severity === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
+          html += '<div class="comp-card"><div class="comp-card-header"><span>' + sug.type.replace(/-/g, ' ') + '</span><span style="color:' + sevColor + ';font-weight:400;">' + sug.severity + '</span></div><div class="comp-card-body" style="font-size:12px;color:var(--text-primary);">' + escapeHtml(sug.suggestion) + '</div></div>';
+        });
+      }
+
+      compDash.innerHTML = html;
+      compDash.scrollTop = 0;
+    }
+
+    // ─── SCREENSHOT COMPARE ────────────────────────────────────────────────
+    async function compareScreenshots() {
+      const f1 = document.getElementById('ssFile1').files[0];
+      const f2 = document.getElementById('ssFile2').files[0];
+      if (!f1 || !f2) { showToast('Please upload both screenshots', 'warning'); return; }
+
+      const ssStatus = document.getElementById('ssStatus');
+      const ssBtn = document.getElementById('ssCompareBtn');
+      ssStatus.style.display = 'block';
+      ssStatus.textContent = 'Uploading and comparing...';
+      ssBtn.disabled = true;
+
+      const formData = new FormData();
+      formData.append('screenshot1', f1);
+      formData.append('screenshot2', f2);
+
+      try {
+        const res = await fetch('/compare-screenshots', { method: 'POST', body: formData });
+        const data = await res.json();
+        ssStatus.textContent = 'Comparison complete';
+        setTimeout(() => { ssStatus.style.display = 'none'; }, 3000);
+        renderScreenshotComparison(data);
+      } catch (err) {
+        ssStatus.textContent = 'Error: ' + err.message;
+      } finally {
+        ssBtn.disabled = false;
+      }
+    }
+
+    function renderScreenshotComparison(data) {
+      const ssDash = document.getElementById('ssDashboard');
+      document.getElementById('ssSummary').textContent = data.dimensions1 + ' vs ' + data.dimensions2;
+
+      let html = '';
+
+      // Side by side images
+      html += '<div class="comp-screenshot-grid">';
+      html += '<div class="comp-screenshot-item"><img src="data:image/png;base64,' + data.img1 + '" alt="Screenshot 1" /><div class="label">Screenshot 1 (' + data.dimensions1 + ')</div></div>';
+      html += '<div class="comp-screenshot-item"><img src="data:image/png;base64,' + data.img2 + '" alt="Screenshot 2" /><div class="label">Screenshot 2 (' + data.dimensions2 + ')</div></div>';
+      html += '</div>';
+
+      // Comparison info
+      html += '<div style="margin-top:16px;"><strong style="font-size:13px;">Comparison</strong></div>';
+      if (data.dimensionsMatch) {
+        html += '<div style="color:var(--success);font-size:13px;padding:8px 0;">Screenshots have matching dimensions.</div>';
+      } else {
+        html += '<div style="color:var(--danger);font-size:13px;padding:8px 0;">Screenshots have different dimensions. Resize to the same resolution before comparing.</div>';
+      }
+
+      // Suggestions
+      if (data.suggestions && data.suggestions.length > 0) {
+        html += '<div style="margin-top:16px;"><strong style="font-size:13px;">Suggestions</strong></div>';
+        data.suggestions.forEach(sug => {
+          const sevColor = sug.severity === 'high' ? 'var(--danger)' : sug.severity === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
+          html += '<div class="comp-card"><div class="comp-card-header"><span>' + sug.type.replace(/-/g, ' ') + '</span><span style="color:' + sevColor + ';font-weight:400;">' + sug.severity + '</span></div><div class="comp-card-body" style="font-size:12px;color:var(--text-primary);">' + escapeHtml(sug.suggestion) + '</div></div>';
+        });
+      }
+
+      ssDash.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ─── SCAN ALL PAGES ──────────────────────────────────────────────────
+    async function scanAllPages() {
+      let url = urlInput.value.trim();
+      if (!url) { showToast('Please enter a URL', 'warning'); return; }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'https://' + url; urlInput.value = url; }
+
+      const scanAllBtn = $('scanAllBtn');
+      const scanAllResults = $('scanAllResults');
+      const scanAllDashboard = $('scanAllDashboard');
+      const scanAllSummary = $('scanAllSummary');
+
+      scanAllBtn.disabled = true;
+      scanAllBtn.textContent = 'Scanning...';
+      setStatus('Scanning pages', 'analyzing');
+      setProgress(10);
+
+      // Hide single scan results, show scan-all results
+      document.querySelector('.content').style.display = 'none';
+      scanAllResults.style.display = 'block';
+
+      scanAllDashboard.innerHTML = '<div class="empty-state"><h3>Scanning all pages...</h3><p>Discovering and analyzing each page. This may take a while.</p></div>';
+
+      const username = $('scanUser').value.trim();
+      const password = $('scanPass').value.trim();
+      const body = { url, maxPages: 10 };
+      if (username && password) { body.username = username; body.password = password; }
+
+      try {
+        setProgress(30);
+        const resp = await fetch('/scan-all?' + Date.now(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error || 'HTTP ' + resp.status); }
+        const data = await resp.json();
+        setProgress(90);
+
+        scanAllSummary.textContent = data.totalPages + ' pages scanned';
+        renderScanAllResults(data);
+        setStatus(data.totalPages + ' pages scanned', 'done');
+        showToast('Scanned ' + data.totalPages + ' pages', 'success');
+      } catch (err) {
+        scanAllDashboard.innerHTML = '<div class="empty-state"><h3>Failed</h3><p>' + escapeHtml(err.message) + '</p></div>';
+        showToast(err.message, 'error');
+        setStatus('Error', 'error');
+      } finally {
+        scanAllBtn.disabled = false;
+        scanAllBtn.textContent = 'Scan All Pages';
+        setProgress(0);
+      }
+    }
+
+    function getPageLabel(url) {
+      try {
+        const u = new URL(url);
+        const hash = u.hash || '';
+        const path = u.pathname || '';
+        if (hash && hash !== '#') {
+          return hash.replace('#/', '/').replace(/^\//, '/');
+        }
+        if (path && path !== '/') {
+          return path.replace(/^\//, '');
+        }
+        return u.hostname;
+      } catch (e) { return url; }
+    }
+
+    function renderScanAllResults(data) {
+      const dash = $('scanAllDashboard');
+      let html = '';
+
+      const totalPages = data.pages.length;
+      const totalIssues = data.pages.reduce((sum, p) => sum + (p.issues ? p.issues.length : 0), 0);
+      const pagesWithIssues = data.pages.filter(p => p.issues && p.issues.length > 0).length;
+      const pagesClean = totalPages - pagesWithIssues;
+      const totalHigh = data.pages.reduce((s, p) => s + (p.issues ? p.issues.filter(i => i.severity === 'high').length : 0), 0);
+      const totalMed = data.pages.reduce((s, p) => s + (p.issues ? p.issues.filter(i => i.severity === 'medium').length : 0), 0);
+      const totalLow = data.pages.reduce((s, p) => s + (p.issues ? p.issues.filter(i => i.severity === 'low').length : 0), 0);
+
+      html += '<div class="stats-row" style="margin-bottom:20px;">';
+      html += '<div class="stat-card total"><div class="num">' + totalPages + '</div><div class="label">Pages Scanned</div></div>';
+      html += '<div class="stat-card open"><div class="num">' + totalIssues + '</div><div class="label">Total Issues</div></div>';
+      html += '<div class="stat-card warning"><div class="num">' + pagesWithIssues + '</div><div class="label">Pages with Issues</div></div>';
+      html += '<div class="stat-card fixed"><div class="num">' + pagesClean + '</div><div class="label">Clean Pages</div></div>';
+      html += '</div>';
+
+      html += '<div class="stats-row" style="margin-bottom:20px;">';
+      html += '<div class="stat-card open"><div class="num">' + totalHigh + '</div><div class="label">High Issues</div></div>';
+      html += '<div class="stat-card warning"><div class="num">' + totalMed + '</div><div class="label">Medium Issues</div></div>';
+      html += '<div class="stat-card fixed"><div class="num">' + totalLow + '</div><div class="label">Low Issues</div></div>';
+      html += '</div>';
+
+      // Each page with its URL path + issues underneath
+      data.pages.forEach((page, idx) => {
+        const issueCount = page.issues ? page.issues.length : 0;
+        const sevHigh = page.issues ? page.issues.filter(i => i.severity === 'high').length : 0;
+        const sevMed = page.issues ? page.issues.filter(i => i.severity === 'medium').length : 0;
+        const sevLow = page.issues ? page.issues.filter(i => i.severity === 'low').length : 0;
+        const pageLabel = getPageLabel(page.url);
+        const borderColor = issueCount === 0 ? 'var(--success)' : sevHigh > 0 ? 'var(--danger)' : 'var(--warning)';
+
+        html += '<div class="comp-card" style="margin-bottom:16px;border-left:4px solid ' + borderColor + ';">';
+        html += '<div class="comp-card-header" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">';
+        html += '<span style="font-size:14px;font-weight:700;">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
+        if (issueCount === 0) {
+          html += '<span style="color:var(--success);font-size:12px;font-weight:600;">&#10003; Clean</span>';
+        } else {
+          html += '<span style="color:' + borderColor + ';font-size:12px;font-weight:600;">' + issueCount + ' issues</span>';
+        }
+        html += '</div>';
+        html += '<div style="font-size:11px;color:var(--text-secondary);word-break:break-all;font-family:monospace;">' + escapeHtml(page.url) + '</div>';
+        html += '</div>';
+
+        html += '<div class="comp-card-body">';
+
+        if (page.screenshot) {
+          html += '<div style="margin-bottom:12px;"><img src="data:image/png;base64,' + page.screenshot + '" style="width:100%;max-height:200px;object-fit:cover;border-radius:6px;border:1px solid var(--border);" /></div>';
+        }
+
+        if (page.error) {
+          html += '<div style="color:var(--danger);font-size:13px;padding:8px;background:var(--danger-bg);border-radius:6px;">Error: ' + escapeHtml(page.error) + '</div>';
+        } else if (issueCount === 0) {
+          html += '<div style="color:var(--success);font-size:13px;padding:8px;background:var(--success-bg);border-radius:6px;">&#10003; No issues found on this page</div>';
+        } else {
+          html += '<div style="display:flex;gap:12px;margin-bottom:10px;">';
+          if (sevHigh > 0) html += '<span style="background:var(--danger-bg);color:var(--danger);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">High: ' + sevHigh + '</span>';
+          if (sevMed > 0) html += '<span style="background:var(--warning-bg);color:var(--warning);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Medium: ' + sevMed + '</span>';
+          if (sevLow > 0) html += '<span style="background:var(--success-bg);color:var(--success);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Low: ' + sevLow + '</span>';
+          html += '</div>';
+
+          html += '<div style="max-height:300px;overflow-y:auto;">';
+          page.issues.forEach(issue => {
+            const sevColor = issue.severity === 'high' ? 'var(--danger)' : issue.severity === 'medium' ? 'var(--warning)' : 'var(--success)';
+            html += '<div style="padding:8px 10px;margin-bottom:6px;border-radius:6px;background:var(--surface-2);border-left:3px solid ' + sevColor + ';">';
+            html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">';
+            html += '<span style="font-size:13px;font-weight:600;color:var(--text);">' + escapeHtml(issue.name) + '</span>';
+            html += '<span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 6px;border-radius:3px;color:' + sevColor + ';">' + issue.severity + '</span>';
+            html += '</div>';
+            html += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">' + escapeHtml(issue.detail) + '</div>';
+            if (issue.context) html += '<div style="font-size:11px;color:var(--primary);font-weight:600;margin-bottom:4px;">Card: ' + escapeHtml(issue.context) + '</div>';
+            html += '<div style="font-size:11px;color:var(--text-secondary);font-family:monospace;background:var(--bg);padding:4px 8px;border-radius:4px;display:inline-block;">' + escapeHtml(issue.selector) + '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</div></div>';
+      });
+
+      // Cross-page inconsistencies (all-pages format)
+      if (data.crossPageComparisons && data.crossPageComparisons.length > 0) {
+        html += '<div style="margin-top:30px;margin-bottom:16px;padding-top:20px;border-top:1px solid var(--border);">';
+        const totalProps = data.crossPageComparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
+        html += '<strong style="font-size:16px;">Cross-page Inconsistencies</strong>';
+        html += '<span style="font-size:12px;color:var(--text-secondary);margin-left:8px;">' + totalProps + ' property differences across ' + data.pages.length + ' pages</span></div>';
+
+        const pageUrls = data.pages.filter(p => !p.error).map(p => p.url);
+
+        data.crossPageComparisons.forEach(comp => {
+          const typeLabel = comp.elementType.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
+          const propCount = Object.keys(comp.properties).length;
+          html += '<div class="comp-card" style="margin-bottom:16px;">';
+          html += '<div class="comp-card-header"><span>' + typeLabel + '</span><span style="color:var(--danger);font-weight:400;">' + propCount + ' property differences</span></div>';
+          html += '<div class="comp-card-body">';
+
+          if (comp.sample && comp.sample.text) {
+            html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">Sample: "' + escapeHtml(comp.sample.text) + '"</div>';
+          }
+
+          // Properties table with all pages
+          for (const [prop, info] of Object.entries(comp.properties)) {
+            html += '<table class="comp-table" style="margin-bottom:8px;"><tr><th>' + prop + '</th>';
+            pageUrls.forEach(u => { html += '<th style="font-size:10px;">' + escapeHtml(getPageLabel(u)) + '</th>'; });
+            html += '</tr><tr><td></td>';
+            pageUrls.forEach(u => {
+              const match = info.values.find(v => v.url === u);
+              const val = match && match.value ? match.value : '-';
+              const isDiff = match && match.value && match.value !== info.dominant;
+              const valEsc = escapeHtml(val);
+              const isColor = /^#([0-9a-f]{3,8}|[0-9a-f]{6})$/i.test(val) || /^rgb/.test(val);
+              const swatch = isColor ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + val + ';border:1px solid var(--border);vertical-align:middle;margin-right:3px;"></span>' : '';
+              html += '<td class="' + (isDiff ? 'diff' : 'same') + '">' + swatch + valEsc + '</td>';
+            });
+            html += '</tr></table>';
+          }
+
+          html += '</div></div>';
+        });
+      } else if (data.pages.length >= 2) {
+        html += '<div style="margin-top:30px;text-align:center;padding:20px;color:var(--success);font-size:14px;border-top:1px solid var(--border);">&#10003; No cross-page inconsistencies found.</div>';
+      }
+
+      dash.innerHTML = html;
+    }
+
+    // ─── BINDINGS ──────────────────────────────────────────────────────────
+    $('analyzeBtn').addEventListener('click', runAnalysis);
+    $('scanAllBtn').addEventListener('click', scanAllPages);
+    $('compareBtn').addEventListener('click', compareUrls);
+    document.getElementById('ssCompareBtn').addEventListener('click', compareScreenshots);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
+    document.getElementById('compareUrls').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.ctrlKey) compareUrls();
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+      if (urlInput.value) setTimeout(() => runAnalysis(), 800);
+    });
+  </script>
+</body>
+</html>

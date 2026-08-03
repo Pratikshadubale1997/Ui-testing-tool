@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DreamNest | Find Your Perfect Home</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <div class="header-inner">
+        <a href="#" class="logo">Dream<span>Nest</span></a>
+        <nav class="nav">
+          <ul class="nav-list">
+            <li><a href="#home" class="nav-link active">Home</a></li>
+            <li><a href="#listings" class="nav-link">Listings</a></li>
+            <li><a href="#about" class="nav-link">About</a></li>
+            <li><a href="#contact" class="nav-link">Contact</a></li>
+          </ul>
+        </nav>
+        <div class="header-actions">
+          <a href="#" class="btn btn-outline">Sign In</a>
+          <a href="#" class="btn btn-primary">Add Listing</a>
+          <button class="hamburger" id="hamburger" aria-label="Menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero" id="home">
+    <div class="hero-overlay"></div>
+    <div class="container">
+      <div class="hero-content">
+        <h1>Find Your <span>Dream Home</span></h1>
+        <p>Discover the perfect property from our extensive collection of premium listings across prime locations.</p>
+        <div class="search-box">
+          <div class="search-row">
+            <div class="search-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <input type="text" id="searchLocation" placeholder="Location..." />
+            </div>
+            <div class="search-item">
+              <i class="fas fa-home"></i>
+              <select id="propertyType">
+                <option value="">Property Type</option>
+                <option value="House">House</option>
+                <option value="Apartment">Apartment</option>
+                <option value="Villa">Villa</option>
+                <option value="Condo">Condo</option>
+              </select>
+            </div>
+            <div class="search-item">
+              <i class="fas fa-dollar-sign"></i>
+              <select id="priceRange">
+                <option value="">Price Range</option>
+                <option value="0-200000">Under $200k</option>
+                <option value="200000-500000">$200k - $500k</option>
+                <option value="500000-1000000">$500k - $1M</option>
+                <option value="1000000-999999999">$1M+</option>
+              </select>
+            </div>
+            <button class="btn btn-primary search-btn" onclick="filterProperties()">
+              <i class="fas fa-search"></i> Search
+            </button>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat"><span class="num" data-target="1200">0</span><span class="label">Properties</span></div>
+          <div class="stat"><span class="num" data-target="850">0</span><span class="label">Happy Clients</span></div>
+          <div class="stat"><span class="num" data-target="50">0</span><span class="label">Awards</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="listings" id="listings">
+    <div class="container">
+      <div class="section-header">
+        <h2>Featured <span>Properties</span></h2>
+        <p>Handpicked selections for discerning buyers</p>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="House">Houses</button>
+        <button class="filter-btn" data-filter="Apartment">Apartments</button>
+        <button class="filter-btn" data-filter="Villa">Villas</button>
+        <button class="filter-btn" data-filter="Condo">Condos</button>
+      </div>
+      <div class="property-grid" id="propertyGrid"></div>
+    </div>
+  </section>
+
+  <section class="about" id="about">
+    <div class="container">
+      <div class="about-grid">
+        <div class="about-image">
+          <img src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=600&q=80" alt="Modern home">
+          <div class="about-experience">
+            <span class="years">15+</span>
+            <p>Years of Excellence</p>
+          </div>
+        </div>
+        <div class="about-content">
+          <h2>We Help You Find <span>Your Perfect Place</span></h2>
+          <p>With over 15 years of experience in the real estate market, we've helped thousands of families find their dream homes. Our team of dedicated professionals is committed to providing exceptional service and expert guidance every step of the way.</p>
+          <div class="about-features">
+            <div class="about-feature">
+              <i class="fas fa-shield-alt"></i>
+              <div>
+                <h4>Trusted Service</h4>
+                <p>100% verified properties with transparent dealings</p>
+              </div>
+            </div>
+            <div class="about-feature">
+              <i class="fas fa-handshake"></i>
+              <div>
+                <h4>Best Deals</h4>
+                <p>Negotiated pricing with the best market rates</p>
+              </div>
+            </div>
+            <div class="about-feature">
+              <i class="fas fa-clock"></i>
+              <div>
+                <h4>Fast Process</h4>
+                <p>Quick paperwork and smooth transaction process</p>
+              </div>
+            </div>
+          </div>
+          <a href="#contact" class="btn btn-primary">Get In Touch</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="contact" id="contact">
+    <div class="container">
+      <div class="section-header">
+        <h2>Get <span>In Touch</span></h2>
+        <p>Ready to find your dream home? Reach out to us today.</p>
+      </div>
+      <div class="contact-grid">
+        <div class="contact-info">
+          <div class="contact-card">
+            <i class="fas fa-phone"></i>
+            <h4>Phone</h4>
+            <p>+1 (555) 123-4567</p>
+          </div>
+          <div class="contact-card">
+            <i class="fas fa-envelope"></i>
+            <h4>Email</h4>
+            <p>hello@dreamnest.com</p>
+          </div>
+          <div class="contact-card">
+            <i class="fas fa-map-marker-alt"></i>
+            <h4>Address</h4>
+            <p>123 Main Street, Suite 400<br/>New York, NY 10001</p>
+          </div>
+        </div>
+        <form class="contact-form" id="contactForm">
+          <div class="form-row">
+            <input type="text" placeholder="Your Name" required />
+            <input type="email" placeholder="Your Email" required />
+          </div>
+          <input type="text" placeholder="Subject" required />
+          <textarea placeholder="Your Message" rows="5" required></textarea>
+          <button type="submit" class="btn btn-primary">Send Message</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#" class="logo">Dream<span>Nest</span></a>
+          <p>Your trusted partner in finding the perfect property. We make real estate simple, transparent, and rewarding.</p>
+          <div class="social-links">
+            <a href="#"><i class="fab fa-facebook-f"></i></a>
+            <a href="#"><i class="fab fa-twitter"></i></a>
+            <a href="#"><i class="fab fa-instagram"></i></a>
+            <a href="#"><i class="fab fa-linkedin-in"></i></a>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h4>Quick Links</h4>
+          <ul>
+            <li><a href="#">Home</a></li>
+            <li><a href="#listings">Listings</a></li>
+            <li><a href="#about">About Us</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Property Types</h4>
+          <ul>
+            <li><a href="#">Houses</a></li>
+            <li><a href="#">Apartments</a></li>
+            <li><a href="#">Villas</a></li>
+            <li><a href="#">Condos</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Newsletter</h4>
+          <p>Subscribe for latest updates and deals.</p>
+          <form class="newsletter-form">
+            <input type="email" placeholder="Your Email" required />
+            <button type="submit"><i class="fas fa-arrow-right"></i></button>
+          </form>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 DreamNest. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

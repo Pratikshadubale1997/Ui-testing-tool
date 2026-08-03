@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rocket Engine — Agent Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0b1120;
+      color: #e2e8f0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* LOGIN SCREEN */
+    .login-screen {
+      position: fixed; inset: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      background: #0b1120;
+    }
+    .login-box {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 40px; width: 380px; max-width: 90vw;
+    }
+    .login-box h1 { font-size: 1.3rem; color: #60a5fa; margin-bottom: 4px; text-align:center; }
+    .login-box p { font-size: 0.8rem; color: #64748b; margin-bottom: 24px; text-align:center; }
+    .login-box label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .login-box input {
+      width: 100%; padding: 10px 14px; border-radius: 6px; border: 1px solid #334155;
+      background: #0f172a; color: #e2e8f0; font-size: 0.9rem; margin-bottom: 16px;
+    }
+    .login-box input:focus { outline: none; border-color: #3b82f6; }
+    .login-box .login-btn {
+      width: 100%; padding: 10px; background: #3b82f6; color: white; border: none;
+      border-radius: 6px; font-size: 0.9rem; cursor: pointer; font-weight: 500;
+    }
+    .login-box .login-btn:hover { background: #2563eb; }
+    .login-box .user-icon {
+      width: 48px; height: 48px; border-radius: 50%; background: #1e3a5f;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+      font-size: 1.5rem; color: #60a5fa;
+    }
+    .login-box .hint { font-size: 0.7rem; color: #475569; margin-top: 12px; text-align: center; }
+    .login-box .row { display: flex; gap: 8px; }
+    .login-box .row > * { flex: 1; }
+    .login-box .link-btn {
+      display: block; text-align: center; margin-top: 12px;
+      color: #3b82f6; font-size: 0.8rem; text-decoration: none; cursor: pointer;
+    }
+    .login-box .link-btn:hover { text-decoration: underline; }
+
+    .app { display: flex; height: 100vh; }
+
+    /* LEFT PANEL */
+    .left-panel {
+      width: 480px; min-width: 480px; background: #0f172a;
+      border-right: 1px solid #1e293b; display: flex; flex-direction: column; overflow-y: auto;
+    }
+    .left-panel::-webkit-scrollbar { width: 4px; }
+    .left-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    .panel-header {
+      padding: 16px 20px; border-bottom: 1px solid #1e293b;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .panel-header h1 { font-size: 1.1rem; color: #60a5fa; }
+    .panel-header .badge { font-size: 0.7rem; color: #94a3b8; background: #1e293b; padding: 2px 10px; border-radius: 10px; }
+
+    .section { padding: 16px 20px; border-bottom: 1px solid #1e293b; }
+    .section label { display: block; font-size: 0.75rem; text-transform: uppercase; color: #64748b; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .section select, .section input, .section textarea {
+      width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155;
+      background: #0b1120; color: #e2e8f0; font-size: 0.85rem;
+    }
+    .section select option { background: #0b1120; }
+    .section textarea { resize: vertical; min-height: 50px; font-family: inherit; }
+
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+
+    .btn {
+      padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+      font-size: 0.82rem; font-weight: 500; transition: all .2s;
+    }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-success { background: #22c55e; color: white; }
+    .btn-success:hover { background: #16a34a; }
+    .btn-outline { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+    .btn-outline:hover { border-color: #60a5fa; color: #60a5fa; }
+    .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+    /* Agent Output */
+    .agent-output {
+      flex: 1; padding: 16px 20px; overflow-y: auto; min-height: 200px;
+    }
+    .agent-output::-webkit-scrollbar { width: 4px; }
+    .agent-output::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    .agent-msg {
+      background: #1e293b; border-left: 3px solid #3b82f6; border-radius: 0 6px 6px 0;
+      padding: 12px; margin-bottom: 10px; font-size: 0.82rem; line-height: 1.5;
+    }
+    .agent-msg .time { font-size: 0.7rem; color: #64748b; }
+    .agent-msg .epic-name { color: #f59e0b; font-weight: 600; }
+    .agent-msg .story-name { color: #60a5fa; }
+    .agent-msg .task-item { color: #94a3b8; padding-left: 16px; font-size: 0.78rem; }
+
+    .agent-msg.success { border-left-color: #22c55e; }
+    .agent-msg.error { border-left-color: #ef4444; }
+
+    .status-bar {
+      padding: 8px 20px; background: #1e293b; border-top: 1px solid #1e293b;
+      display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #64748b;
+    }
+    .status-bar .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
+    .status-bar .dot.green { background: #22c55e; }
+    .status-bar .dot.red { background: #ef4444; }
+    .status-bar .dot.yellow { background: #f59e0b; }
+
+    /* RIGHT PANEL */
+    .right-panel {
+      flex: 1; display: flex; flex-direction: column; background: #0b1120;
+    }
+    .right-header {
+      padding: 20px 24px; border-bottom: 1px solid #1e293b;
+    }
+    .right-header h2 { font-size: 1.1rem; color: #e2e8f0; }
+    .right-header p { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+
+    .dashboard-grid {
+      flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+      padding: 24px; align-content: start; overflow-y: auto;
+    }
+    .dash-card {
+      background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+      padding: 24px; cursor: pointer; transition: all .2s;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .dash-card:hover { border-color: #60a5fa; transform: translateY(-2px); }
+    .dash-card .icon { font-size: 1.8rem; }
+    .dash-card .title { font-size: 1rem; font-weight: 600; color: #e2e8f0; }
+    .dash-card .desc { font-size: 0.78rem; color: #64748b; line-height: 1.4; }
+    .dash-card .badge-link {
+      display: inline-block; font-size: 0.7rem; color: #60a5fa;
+      background: rgba(59,130,246,0.1); padding: 2px 10px; border-radius: 10px; margin-top: 4px;
+    }
+    .dash-card.storyboard { border-left: 3px solid #a855f7; }
+    .dash-card.scrum { border-left: 3px solid #3b82f6; }
+    .dash-card.mytask { border-left: 3px solid #22c55e; }
+    .dash-card.progress { border-left: 3px solid #f59e0b; }
+    .dash-card.timesheet { border-left: 3px solid #ec4899; }
+    .dash-card.report { border-left: 3px solid #8b5cf6; }
+    .dash-card .bottom-row {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 4px;
+    }
+    .dash-card .arrow { color: #475569; font-size: 1.2rem; }
+    .dash-card:hover .arrow { color: #60a5fa; }
+
+    .nav-group { display: flex; gap: 4px; align-items: center; }
+    .nav-group .label { font-size: 0.7rem; color: #475569; margin-right: 4px; }
+
+    /* Timeline */
+    .timeline { margin-top: 8px; }
+    .timeline-item {
+      display: flex; gap: 8px; padding: 4px 0; font-size: 0.78rem; align-items: center;
+    }
+    .timeline-item .time { color: #64748b; min-width: 35px; font-size: 0.72rem; }
+    .timeline-item .bar {
+      height: 18px; border-radius: 3px; flex: 1; padding: 0 8px;
+      line-height: 18px; font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .timeline-item .bar.epic { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .timeline-item .bar.story { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .timeline-item .bar.task { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+
+    .tabs { display: flex; gap: 2px; margin-bottom: 8px; }
+    .tab {
+      padding: 4px 12px; border-radius: 4px 4px 0 0; background: transparent;
+      border: none; color: #64748b; cursor: pointer; font-size: 0.75rem; border-bottom: 2px solid transparent;
+    }
+    .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
+
+    .hidden { display: none !important; }
+    .mt-2 { margin-top: 8px; }
+    .flex { display: flex; }
+    .gap-2 { gap: 8px; }
+    .items-center { align-items: center; }
+
+    @media (max-width: 960px) {
+      .left-panel { width: 100%; min-width: 0; }
+      .right-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- LOGIN SCREEN -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-box">
+      <div class="user-icon">🚀</div>
+      <h1>Rocket Engine</h1>
+      <p>Sign in to your Agent Dashboard</p>
+      <label>Username</label>
+      <input type="text" id="loginUser" placeholder="Enter your Rocket Engine username" autocomplete="username">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="Enter your Rocket Engine password" autocomplete="current-password">
+      <button class="login-btn" id="loginBtn">Sign In</button>
+      <a class="link-btn" id="openTabBtn" target="_blank">Open Rocket Engine in new tab →</a>
+    </div>
+  </div>
+
+  <div class="app" id="appMain" style="display:none;">
+    <!-- LEFT PANEL -->
+    <div class="left-panel" id="leftPanel">
+      <div class="panel-header">
+        <h1> Agent Dashboard</h1>
+        <span class="badge">Pratiksha</span>
+      </div>
+
+      <!-- Project Select -->
+      <div class="section">
+        <label>Project</label>
+        <select id="projectSelect">
+          <option value="">Select project...</option>
+          <option value="Rocket Engine Core">Rocket Engine Core</option>
+          <option value="Propulsion System">Propulsion System</option>
+          <option value="Navigation Module">Navigation Module</option>
+          <option value="Telemetry Dashboard">Telemetry Dashboard</option>
+          <option value="Launch Control System">Launch Control System</option>
+          <option value="Cooling System">Cooling System</option>
+          <option value="Fuel Management">Fuel Management</option>
+        </select>
+      </div>
+
+      <!-- Task Input -->
+      <div class="section">
+        <label>What task do you want to create?</label>
+        <textarea id="taskInput" placeholder='e.g. "Build the fuel injection system for the rocket engine"'></textarea>
+        <div class="row mt-2">
+          <select id="timeSelect">
+            <option value="">Auto schedule</option>
+          </select>
+          <select id="userSelect">
+            <option value="Pratiksha">Pratiksha</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Agent Controls -->
+      <div class="section">
+        <div class="row">
+          <button class="btn btn-primary" id="createBtn" style="flex:2"> Create Epic & Stories</button>
+          <button class="btn btn-danger" id="stopBtn" style="flex:1"> Stop</button>
+        </div>
+        <div class="row mt-2">
+          <button class="btn btn-outline btn-sm" id="scrumBtn"> Go to Scrum</button>
+          <button class="btn btn-outline btn-sm" id="myTaskBtn"> My Task</button>
+          <button class="btn btn-outline btn-sm" id="storyboardBtn"> Storyboard</button>
+          <button class="btn btn-success btn-sm" id="moveBtn"> Move to In Progress</button>
+        </div>
+      </div>
+
+      <!-- Agent Output -->
+      <div class="agent-output" id="agentOutput">
+        <div class="agent-msg">
+          <div class="time">Agent ready</div>
+          Hello Pratiksha! Tell me what task you want to create, and I'll:<br>
+           <strong>1</strong> Generate <strong>1 Epic</strong> → <strong>3-4 Stories</strong> → <strong>2-3 Tasks each</strong><br>
+           <strong>2</strong> Navigate to Scrum so you can drag stories to In Progress<br>
+           <strong>3</strong> Auto-plan all tasks in your <strong>10:00–19:00 schedule</strong>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="section">
+        <label>Today's Schedule (10:00 - 19:00)</label>
+        <div class="timeline" id="timeline"></div>
+      </div>
+
+      <div class="status-bar">
+        <span><span class="dot green"></span> Agent active</span>
+        <span id="statusText">Waiting for input...</span>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+      <div class="right-header">
+        <h2>Welcome, <span id="dashUser">Pratiksha</span></h2>
+        <p>Rocket Engine — select a module to open in new tab</p>
+      </div>
+      <div class="dashboard-grid" id="dashGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    // ===== LOGIN =====
+    document.getElementById('loginBtn').addEventListener('click', doLogin);
+    document.getElementById('loginPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+    document.getElementById('loginUser').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('loginPass').focus(); });
+    document.getElementById('openTabBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open('https://start.rocket-engine.com/', '_blank');
+    });
+
+    function doLogin() {
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value.trim();
+
+      if (!user && !pass) {
+        document.getElementById('loginUser').placeholder = 'Enter your username';
+        document.getElementById('loginUser').style.borderColor = '#ef4444';
+        setTimeout(() => document.getElementById('loginUser').style.borderColor = '', 1500);
+        return;
+      }
+
+      localStorage.setItem('re_username', user);
+      if (pass) localStorage.setItem('re_password', 'saved');
+
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appMain').style.display = 'flex';
+      document.querySelector('.badge').textContent = user;
+
+      // Show dashboard with links
+      renderDashboard(user);
+
+      // Open Rocket Engine in a new tab
+      window.open('https://start.rocket-engine.com/', '_blank');
+
+      initApp();
+    }
+
+    // ===== INIT =====
+    const PROJECTS = [
+      'Rocket Engine Core', 'Propulsion System', 'Navigation Module',
+      'Telemetry Dashboard', 'Launch Control System', 'Cooling System', 'Fuel Management'
+    ];
+    const USERS = ['Pratiksha', 'Shubham', 'Shantanu', 'Satyam', 'Bhushan'];
+    const HOURS = [];
+    for (let h = 10; h <= 19; h++) {
+      HOURS.push(`${String(h).padStart(2, '0')}:00`);
+      if (h < 19) HOURS.push(`${String(h).padStart(2, '0')}:30`);
+    }
+
+    const timeSelect = document.getElementById('timeSelect');
+    HOURS.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      timeSelect.appendChild(opt);
+    });
+
+    const userSelect = document.getElementById('userSelect');
+    USERS.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u; opt.textContent = u;
+      if (u === 'Pratiksha') opt.selected = true;
+      userSelect.appendChild(opt);
+    });
+
+    const projectSelect = document.getElementById('projectSelect');
+    const taskInput = document.getElementById('taskInput');
+    const agentOutput = document.getElementById('agentOutput');
+    const timeline = document.getElementById('timeline');
+    const statusText = document.getElementById('statusText');
+    const dashGrid = document.getElementById('dashGrid');
+    const dashUser = document.getElementById('dashUser');
+
+    const DASHBOARD_LINKS = [
+      { id: 'storyboard', title: 'Storyboard', desc: 'Create and manage epics, stories, and tasks', icon: '📋', color: 'storyboard', url: 'https://start.rocket-engine.com/#/storyboard' },
+      { id: 'scrum', title: 'Scrum', desc: 'Sprint planning, backlog, and drag tasks to in progress', icon: '🏃', color: 'scrum', url: 'https://start.rocket-engine.com/#/scrum' },
+      { id: 'mytask', title: 'My Task', desc: 'View and manage your personal tasks and schedule', icon: '✅', color: 'mytask', url: 'https://start.rocket-engine.com/#/mytask-v2' },
+      { id: 'progress', title: 'Project Progress', desc: 'Track overall project status and completion', icon: '📊', color: 'progress', url: 'https://start.rocket-engine.com/#/project-progress' },
+      { id: 'timesheet', title: 'Timesheets', desc: 'Log and review your time entries', icon: '⏱️', color: 'timesheet', url: 'https://start.rocket-engine.com/#/timesheet' },
+      { id: 'report', title: 'Reports', desc: 'Generate and view project reports', icon: '📈', color: 'report', url: 'https://start.rocket-engine.com/#/report' },
+    ];
+
+    function renderDashboard(username) {
+      if (dashUser) dashUser.textContent = username;
+      if (!dashGrid) return;
+      dashGrid.innerHTML = DASHBOARD_LINKS.map(link => `
+        <div class="dash-card ${link.color}" data-url="${link.url}">
+          <div class="icon">${link.icon}</div>
+          <div class="title">${link.title}</div>
+          <div class="desc">${link.desc}</div>
+          <div class="bottom-row">
+            <span class="badge-link">${link.url.split('/#/')[1] || ''}</span>
+            <span class="arrow">→</span>
+          </div>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.dash-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const url = card.dataset.url;
+          window.open(url, '_blank');
+        });
+      });
+    }
+
+    let isStopped = false;
+    let generatedEpics = [];
+
+    // ===== AGENT LOGIC =====
+    function agentLog(html, type = '') {
+      const div = document.createElement('div');
+      div.className = `agent-msg ${type}`;
+      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      div.innerHTML = `<div class="time">${time}</div>${html}`;
+      agentOutput.appendChild(div);
+      agentOutput.scrollTop = agentOutput.scrollHeight;
+    }
+
+    function buildTimeline(tasks) {
+      timeline.innerHTML = '';
+      tasks.sort((a, b) => (a.time || '10:00').localeCompare(b.time || '10:00'));
+      tasks.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'timeline-item';
+        item.innerHTML = `
+          <span class="time">${t.time || '--'}</span>
+          <div class="bar ${t.type}">${t.label}</div>
+        `;
+        timeline.appendChild(item);
+      });
+    }
+
+    function generateStories(epicName, count) {
+      const templates = [
+        { story: 'Design & Architecture', tasks: ['Create technical specification', 'Design system architecture', 'Review with team'] },
+        { story: 'Core Implementation', tasks: ['Implement core logic', 'Write unit tests', 'Code review'] },
+        { story: 'Testing & QA', tasks: ['Integration testing', 'Performance benchmarking', 'Bug fixes'] },
+        { story: 'Deployment & Documentation', tasks: ['Create deployment guide', 'Write API docs', 'Deploy to staging'] },
+        { story: 'UI / Frontend', tasks: ['Build UI components', 'Responsive design', 'User acceptance test'] },
+        { story: 'API & Integration', tasks: ['Define API endpoints', 'Integration with backend', 'Error handling'] },
+        { story: 'Security & Compliance', tasks: ['Security audit', 'Compliance check', 'Penetration testing'] },
+        { story: 'Monitoring & Logging', tasks: ['Set up monitoring', 'Configure alerts', 'Create dashboards'] },
+      ];
+      const selected = templates.slice(0, count);
+      return selected.map((s, idx) => ({
+        story: `${s.story}`,
+        tasks: s.tasks.slice(0, 2 + Math.floor(Math.random() * 2)), // 2-3 tasks
+        time: `${String(10 + idx * 2).padStart(2, '0')}:00`
+      }));
+    }
+
+    function createEpicStructure(userInput) {
+      const epicName = userInput.trim() || 'New Feature';
+      const storyCount = 3 + Math.floor(Math.random() * 2); // 3-4 stories
+      const stories = generateStories(epicName, storyCount);
+
+      const epic = {
+        name: epicName,
+        project: projectSelect.value || 'Unassigned',
+        stories: stories,
+        totalTasks: stories.reduce((sum, s) => sum + s.tasks.length, 0)
+      };
+      return epic;
+    }
+
+    function renderEpic(epic) {
+      // Agent log
+      let html = `<div class="epic-name"> Epic: ${epic.name}</div>`;
+      html += `<div style="font-size:0.75rem;color:#64748b;margin-bottom:6px;">Project: ${epic.project} | ${epic.stories.length} Stories | ${epic.totalTasks} Tasks</div>`;
+
+      epic.stories.forEach((s, i) => {
+        html += `<div class="story-name"> ${i+1}. ${s.story} <span style="color:#64748b;font-size:0.75rem;">(${s.tasks.length} tasks)</span></div>`;
+        s.tasks.forEach(t => {
+          html += `<div class="task-item">  ${t}</div>`;
+        });
+      });
+
+      agentLog(html, 'success');
+      statusText.textContent = `Created epic "${epic.name}" with ${epic.stories.length} stories`;
+
+      // Build timeline
+      const timelineTasks = [];
+      const startHour = 10;
+      epic.stories.forEach((s, i) => {
+        const hour = startHour + (i * 2);
+        if (hour <= 18) {
+          timelineTasks.push({ time: `${String(hour).padStart(2, '0')}:00`, label: s.story, type: 'story' });
+          s.tasks.forEach((t, j) => {
+            const taskHour = hour + (j * 0.5);
+            if (taskHour < 19) {
+              const h = Math.floor(taskHour);
+              const m = (taskHour % 1) * 60;
+              timelineTasks.push({
+                time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+                label: t.substring(0, 30),
+                type: 'task'
+              });
+            }
+          });
+        }
+      });
+      buildTimeline(timelineTasks);
+    }
+
+    // ===== MAIN ACTION =====
+    document.getElementById('createBtn').addEventListener('click', () => {
+      const input = taskInput.value.trim();
+      if (!input) {
+        agentLog('Please enter what task you want to create.', 'error');
+        return;
+      }
+
+      isStopped = false;
+      const epic = createEpicStructure(input);
+      generatedEpics.push(epic);
+      renderEpic(epic);
+
+      // Auto-navigate to scrum
+      // Open Scrum page
+      openPage('https://start.rocket-engine.com/#/scrum');
+
+      agentLog(' Navigated to Scrum page. Click <strong>"Move to In Progress"</strong> button to move stories and auto-plan your schedule!', '');
+    });
+
+    // ===== STOP BUTTON =====
+    document.getElementById('stopBtn').addEventListener('click', () => {
+      isStopped = true;
+      agentLog(' Stopped by user. No further actions will be taken.', 'error');
+      statusText.textContent = 'Stopped';
+      document.querySelector('.status-bar .dot').className = 'dot red';
+    });
+
+    // ===== OPEN ROCKET ENGINE PAGE =====
+    function openPage(url) {
+      window.open(url, '_blank');
+    }
+
+    document.getElementById('scrumBtn').addEventListener('click', () => {
+      openPage('https://start.rocket-engine.com/#/scrum');
+    });
+
+    document.getElementById('myTaskBtn').addEventListener('click', () => {
+      openPage('https://start.rocket-engine.com/#/mytask-v2');
+    });
+
+    document.getElementById('storyboardBtn').addEventListener('click', () => {
+      openPage('https://start.rocket-engine.com/#/storyboard');
+    });
+
+    // ===== PLAN TASKS FOR PRATIKSHA =====
+    function planPratikshaTasks(epic) {
+      const dayOfWeek = new Date().getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        agentLog(' No planning on weekends. See you Monday!', 'error');
+        return;
+      }
+
+      const plannedTasks = [];
+      const startHour = 10;
+      let taskIndex = 0;
+
+      epic.stories.forEach((s, si) => {
+        const storyHour = startHour + (si * 2);
+        if (storyHour >= 19) return;
+
+        // Add story as a header in schedule
+        plannedTasks.push({
+          time: `${String(storyHour).padStart(2, '0')}:00`,
+          label: `${s.story}`,
+          type: 'story',
+          owner: 'Pratiksha',
+          status: 'In Progress'
+        });
+
+        s.tasks.forEach((t, ti) => {
+          const taskMinute = 30 + (ti * 30);
+          let hour = storyHour;
+          let min = taskMinute;
+          if (min >= 60) { hour += 1; min = 0; }
+          if (hour >= 19) return;
+
+          const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+          plannedTasks.push({
+            time: timeStr,
+            label: t,
+            type: 'task',
+            owner: 'Pratiksha',
+            status: 'In Progress',
+            story: s.story
+          });
+          taskIndex++;
+        });
+      });
+
+      // Build detailed schedule output
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+      let scheduleHtml = `<div style="margin-bottom:8px;"><strong> Pratiksha's Schedule — ${dateStr}</strong></div>`;
+      scheduleHtml += `<div style="font-size:0.75rem;color:#64748b;margin-bottom:8px;">Epic: ${epic.name} | ${plannedTasks.filter(t => t.type === 'task').length} tasks planned (10:00 - 19:00)</div>`;
+
+      plannedTasks.forEach(t => {
+        const color = t.type === 'story' ? '#f59e0b' : '#94a3b8';
+        const bg = t.type === 'story' ? 'rgba(245,158,11,0.1)' : 'transparent';
+        scheduleHtml += `<div style="display:flex;gap:8px;padding:3px 0;font-size:0.78rem;background:${bg};border-radius:3px;">
+          <span style="color:#64748b;min-width:35px;font-size:0.72rem;">${t.time}</span>
+          <span style="color:${color};">${t.label}</span>
+          <span style="color:#3b82f6;font-size:0.7rem;margin-left:auto;">${t.owner}</span>
+        </div>`;
+      });
+
+      agentLog(scheduleHtml, 'success');
+
+      // Update timeline with planned schedule
+      const timelineTasks = plannedTasks.map(t => ({
+        time: t.time,
+        label: t.label,
+        type: t.type
+      }));
+      buildTimeline(timelineTasks);
+
+      statusText.textContent = ` Planned ${plannedTasks.filter(t => t.type === 'task').length} tasks for Pratiksha (10:00-19:00)`;
+
+      return plannedTasks;
+    }
+
+    // ===== MOVE TO IN PROGRESS & PLAN =====
+    document.getElementById('moveBtn').addEventListener('click', () => {
+      if (generatedEpics.length === 0) {
+        agentLog('No epics created yet. Create an epic first.', 'error');
+        return;
+      }
+      if (isStopped) {
+        agentLog('Action was stopped. Click "Create Epic" to start again.', 'error');
+        return;
+      }
+
+      const epic = generatedEpics[generatedEpics.length - 1];
+      agentLog(` Moving "${epic.name}" stories from Backlog → In Progress...`, '');
+
+      // Plan all tasks for Pratiksha (10:00-19:00)
+      const planned = planPratikshaTasks(epic);
+
+      // Open My Task so she can see the plan
+      openPage('https://start.rocket-engine.com/#/mytask-v2');
+
+      agentLog(
+        ' <strong>Done!</strong> All stories moved to In Progress and tasks planned for Pratiksha.<br>' +
+        ' <strong>Schedule:</strong> 10:00 AM — 7:00 PM<br>' +
+        ' Stories to work through:' +
+        epic.stories.map((s, i) => `<br>  ${i+1}. ${s.story} (${s.tasks.length} tasks)`).join('') +
+        '<br><br> Navigated to <strong>My Task</strong> page — start working!',
+        'success'
+      );
+      statusText.textContent = ' Tasks planned for Pratiksha — check My Task page';
+    });
+
+    // ===== PROJECT CHANGE =====
+    projectSelect.addEventListener('change', () => {
+      if (projectSelect.value) {
+        agentLog(`Switched to project: <strong>${projectSelect.value}</strong>`, '');
+      }
+    });
+
+    function initApp() {
+      // Initial agent message
+      agentLog('Connected to <strong>Rocket Engine</strong> | Ready for tasks, Pratiksha!', '');
+    }
+  </script>
+</body>
+</html>
