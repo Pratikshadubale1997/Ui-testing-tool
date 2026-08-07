@@ -42,71 +42,13 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
     lastUrl = curUrl;
   }
 
-  // If redirected to login and credentials provided, attempt login
-  if (page.url().includes('/login') && credentials) {
+  // If the page is a login page and credentials provided, attempt login
+  if (credentials && (await isLoginPage(page))) {
     console.log(`  [INFO] On login page, attempting login...`);
     try {
-      // Find username/email field
-      const usernameSel = await page.evaluate(() => {
-        const selectors = [
-          'input[type="email"]', 'input[name="email"]', 'input[name="username"]',
-          'input[name="user"]', 'input[name="login"]', 'input[id*="email" i]',
-          'input[id*="user" i]', 'input[placeholder*="email" i]',
-          'input[placeholder*="user" i]', 'input[placeholder*="login" i]'
-        ];
-        for (const sel of selectors) {
-          const el = document.querySelector(sel);
-          if (el) return sel;
-        }
-        return null;
-      });
-
-      // Find password field
-      const passwordSel = await page.evaluate(() => {
-        const el = document.querySelector('input[type="password"]');
-        return el ? 'input[type="password"]' : null;
-      });
-
-      if (usernameSel && passwordSel) {
-        await page.type(usernameSel, credentials.username, { delay: 50 });
-        await page.type(passwordSel, credentials.password, { delay: 50 });
-
-        // Find and click submit button
-        await page.evaluate(() => {
-          const btnSelectors = [
-            'button[type="submit"]', 'input[type="submit"]',
-            'button:not([type="button"])', '.btn-primary', '.login-btn',
-            'button.login', 'button[type="submit"]'
-          ];
-          for (const sel of btnSelectors) {
-            const el = document.querySelector(sel);
-            if (el) { el.click(); return; }
-          }
-          // Fallback: find button with login/sign-in text
-          document.querySelectorAll('button').forEach(b => {
-            const text = b.textContent.toLowerCase();
-            if (text.includes('login') || text.includes('sign in') || text.includes('log in')) {
-              b.click();
-            }
-          });
-        });
-
-        // Wait for redirect after login
-        for (let i = 0; i < 20; i++) {
-          await page.waitForTimeout(1000);
-          if (!page.url().includes('/login')) {
-            console.log(`  [INFO] Login successful, redirected to: ${page.url()}`);
-            break;
-          }
-        }
-
-        // Wait for network to settle after login
-        try {
-          await page.waitForNetworkIdle({ idleTime: 1000, timeout: 15000 });
-        } catch (e) {}
-      } else {
-        console.log(`  [WARN] Could not find login form fields on page`);
-      }
+      const loggedIn = await attemptLogin(page, credentials);
+      if (loggedIn) console.log(`  [INFO] Login successful. Current URL: ${page.url()}`);
+      else console.log(`  [WARN] Login may have failed - page still looks like a login page`);
     } catch (e) {
       console.log(`  [WARN] Login attempt failed: ${e.message}`);
     }
@@ -128,6 +70,127 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
   }
 
   await page.waitForTimeout(2000);
+}
+
+// Detects whether the current page is a login/authentication page.
+async function isLoginPage(page) {
+  if (!(await hasVisiblePasswordField(page))) return false;
+  return page.evaluate(() => {
+    const url = (location.href || '').toLowerCase();
+    const urlHint = /(login|log-in|signin|sign-in|auth)/.test(url);
+    const text = (document.body && document.body.innerText || '').toLowerCase();
+    const textHint = /\bsign in\b|\blog in\b|\blogin\b/.test(text);
+    return urlHint || textHint;
+  });
+}
+
+// Whether a visible password field is currently present (i.e. a login form is shown).
+async function hasVisiblePasswordField(page) {
+  return page.evaluate(() => {
+    return Array.from(document.querySelectorAll('input[type="password"]')).some(el => {
+      if (!el || !el.isConnected) return false;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+    });
+  });
+}
+
+// Fills the login form with the given credentials and submits it.
+// Returns true only if the login form disappears (login succeeded).
+async function attemptLogin(page, credentials) {
+  const found = await page.evaluate(() => {
+    const isVisible = (el) => {
+      if (!el || !el.isConnected) return false;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+    };
+    const mkSel = (el) => {
+      if (el.id) return '#' + CSS.escape(el.id);
+      if (el.name) return el.tagName.toLowerCase() + '[name="' + el.name.replace(/"/g, '\\"') + '"]';
+      return null;
+    };
+    const pw = Array.from(document.querySelectorAll('input[type="password"]')).find(isVisible);
+    const allInputs = Array.from(document.querySelectorAll('input, textarea')).filter(isVisible);
+    const nonPw = allInputs.filter(el => el.type !== 'password');
+    const hintRe = /(email|user|login|account|name|phone|mobile|id)/i;
+    const user = nonPw.find(el => hintRe.test((el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '')))
+      || nonPw.find(el => el.type === 'text' || el.type === 'email' || !el.type)
+      || nonPw[0];
+    if (!pw || !user) return null;
+    return {
+      userSel: mkSel(user) || user.tagName.toLowerCase(),
+      pwSel: mkSel(pw) || 'input[type="password"]',
+    };
+  });
+
+  if (!found) {
+    console.log(`  [WARN] Could not find login form fields on page`);
+    return false;
+  }
+
+  try {
+    await page.click(found.userSel, { clickCount: 3 });
+    await page.type(found.userSel, credentials.username, { delay: 30 });
+  } catch (e) {
+    try { await page.type(found.userSel, credentials.username, { delay: 30 }); } catch (e2) { return false; }
+  }
+  try {
+    await page.type(found.pwSel, credentials.password, { delay: 30 });
+  } catch (e) {
+    return false;
+  }
+
+  // Submit the form
+  const submitted = await page.evaluate(() => {
+    const isVisible = (el) => {
+      if (!el || !el.isConnected) return false;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+    };
+    const textHints = ['log in', 'login', 'sign in', 'signin', 'submit', 'continue', 'enter', 'next', 'let me in', 'sign on', 'logon'];
+    const form = document.querySelector('input[type="password"]') ? document.querySelector('input[type="password"]').closest('form') : null;
+    // 1) submit button inside the login form
+    if (form) {
+      const fb = form.querySelector('button[type="submit"], input[type="submit"], button');
+      if (fb && isVisible(fb)) { fb.click(); return true; }
+    }
+    // 2) any visible button/input with login-ish text
+    const all = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]')).filter(isVisible);
+    for (const el of all) {
+      const t = ((el.textContent || el.value || '') + '').toLowerCase().trim();
+      if (textHints.some(h => t.includes(h))) { el.click(); return true; }
+    }
+    // 3) any visible submit button
+    const anySubmit = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(isVisible);
+    if (anySubmit) { anySubmit.click(); return true; }
+    return false;
+  });
+
+  if (!submitted) {
+    // Fallback: press Enter inside the password field (native form submission)
+    try { await page.keyboard.press('Enter'); } catch (e) {}
+  }
+
+  // Wait until the login form disappears (up to ~20s)
+  let loggedIn = false;
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(1000);
+    if (!(await hasVisiblePasswordField(page))) { loggedIn = true; break; }
+    // SPA logins often change the URL; short-circuit if we left the login page
+    const url = page.url().toLowerCase();
+    if (!/(login|log-in|signin|sign-in)/.test(url)) {
+      await page.waitForTimeout(1000);
+      if (!(await hasVisiblePasswordField(page))) { loggedIn = true; break; }
+    }
+  }
+
+  try {
+    await page.waitForNetworkIdle({ idleTime: 800, timeout: 10000 });
+  } catch (e) {}
+  return loggedIn;
 }
 
 const ANALYSIS_SCRIPT = `
@@ -204,6 +267,26 @@ const ANALYSIS_SCRIPT = `
   }
 
   function addIssue(ruleId, name, severity, category, el, detail, suggestion, fixCss, context) {
+    let bbox = null;
+    try {
+      // Page-relative coords so the box lines up with the full-page screenshot.
+      // If the element itself has no size (hidden/not rendered), fall back to the
+      // nearest visible ancestor so the issue can still be located in the screenshot.
+      let node = el;
+      let r = node.getBoundingClientRect();
+      while (node && node.nodeType === 1 && (r.width < 1 || r.height < 1)) {
+        node = node.parentElement;
+        r = node ? node.getBoundingClientRect() : r;
+      }
+      if (r.width >= 1 && r.height >= 1) {
+        bbox = {
+          x: r.x + window.scrollX,
+          y: r.y + window.scrollY,
+          width: r.width,
+          height: r.height,
+        };
+      }
+    } catch (e) {}
     issues.push({
       id: 'issue-' + (issueId++),
       ruleId,
@@ -215,6 +298,7 @@ const ANALYSIS_SCRIPT = `
       recommendation: suggestion,
       fixCss,
       context,
+      bbox,
     });
   }
 
@@ -611,8 +695,25 @@ app.post('/analyze', async (req, res) => {
 
     await navigateToPage(page, url, 30000, credentials);
 
-    // Take screenshot
-    const screenshot = await page.screenshot({ type: 'png', fullPage: false });
+    // If the page requires login, ask for credentials before showing any issues.
+    if (await isLoginPage(page)) {
+      await page.close();
+      if (credentials) {
+        return res.json({
+          url,
+          loginRequired: true,
+          message: 'Login failed with the provided credentials. Please check the username and password and try again.',
+        });
+      }
+      return res.json({
+        url,
+        loginRequired: true,
+        message: 'This page requires a username and password. Please enter your login credentials above and click Analyze again.',
+      });
+    }
+
+    // Take screenshot (full page so all elements, including below-the-fold ones, can be highlighted)
+    const screenshot = await page.screenshot({ type: 'png', fullPage: true });
 
     // Run analysis
     const issues = await page.evaluate(ANALYSIS_SCRIPT);
@@ -889,6 +990,42 @@ const COMPARE_SCRIPT = `
   const isLoginPage = location.href.includes('/login') || location.href.includes('/auth') || !!document.querySelector('input[type="password"], form[action*="login"], .login-form, #login-form');
   const pageTitle = document.title || '';
 
+  function getUniqueSelector(el) {
+    if (!el) return 'unknown';
+    if (el.id) return '#' + el.id;
+    let path = [];
+    let cur = el;
+    while (cur && cur.nodeType === 1) {
+      let sel = cur.tagName.toLowerCase();
+      if (cur.id) { path.unshift('#' + cur.id); break; }
+      if (cur.className && typeof cur.className === 'string') {
+        const classes = cur.className.trim().split(/\\s+/).filter(c => !c.startsWith('issue-')).slice(0, 2);
+        if (classes.length) sel += '.' + classes.join('.');
+      }
+      const parent = cur.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter(c => c.tagName === cur.tagName);
+        if (siblings.length > 1) {
+          sel += ':nth-child(' + (siblings.indexOf(cur) + 1) + ')';
+        }
+      }
+      path.unshift(sel);
+      cur = cur.parentElement;
+      if (path.length > 3) break;
+    }
+    return path.join(' > ');
+  }
+
+  function getBBox(el) {
+    try {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 1 && r.height >= 1) {
+        return { x: r.x + window.scrollX, y: r.y + window.scrollY, width: r.width, height: r.height };
+      }
+    } catch (e) {}
+    return null;
+  }
+
   const ELEMENT_TYPES = {
     'button': ['button', 'a.btn', '[role="button"]', 'input[type="submit"]', 'input[type="button"]'],
     'heading1': ['h1'],
@@ -935,7 +1072,9 @@ const COMPARE_SCRIPT = `
           props,
           tag: el.tagName.toLowerCase(),
           text: (el.textContent || '').trim().slice(0, 60),
-          visible: rect.width > 0 && rect.height > 0
+          visible: rect.width > 0 && rect.height > 0,
+          selector: getUniqueSelector(el),
+          bbox: getBBox(el)
         });
       }
     });
@@ -983,40 +1122,25 @@ app.post('/compare', async (req, res) => {
     await page.setViewport({ width: 1280, height: 800 });
     await page.setDefaultNavigationTimeout(60000);
 
-    // If credentials provided, login once before navigating to pages
-    if (credentials) {
-      console.log(`  [LOGIN] Logging in as ${credentials.username}...`);
-      const baseUrl = urls[0].split('#')[0];
-      await page.goto(baseUrl + '#/login', { waitUntil: 'domcontentloaded' });
-      // Wait for Vue form to render
-      try { await page.waitForSelector('#email', { timeout: 25000 }); } catch(e) {}
-      const hasForm = await page.evaluate(() => !!document.getElementById('email'));
-      if (hasForm) {
-        await page.evaluate((c) => {
-          const ns = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-          ns.call(document.getElementById('email'), c.username);
-          document.getElementById('email').dispatchEvent(new Event('input', { bubbles: true }));
-          ns.call(document.getElementById('password'), c.password);
-          document.getElementById('password').dispatchEvent(new Event('input', { bubbles: true }));
-        }, credentials);
-        await page.evaluate(() => {
-          const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Login');
-          if (btn) btn.click();
-        });
-        // Wait for login to complete
-        for (let i = 0; i < 20; i++) {
-          await new Promise(r => setTimeout(r, 1000));
-          if (!page.url().includes('/login')) break;
-        }
-        console.log(`  [LOGIN] Login complete. URL: ${page.url()}`);
-      }
-    }
-
-    // Navigate to each URL (session already established)
+    // Navigate to each URL (login handled generically by navigateToPage).
+    // If a page requires login, ask for credentials instead of returning results.
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
       try {
-    await navigateToPage(page, url, 30000, credentials);
+        await navigateToPage(page, url, 30000, credentials);
+        if (await isLoginPage(page)) {
+          await page.close().catch(() => {});
+          if (credentials) {
+            return res.json({
+              loginRequired: true,
+              message: 'Login failed with the provided credentials. Please check the username and password and try again.',
+            });
+          }
+          return res.json({
+            loginRequired: true,
+            message: 'These pages require a username and password. Please enter your login credentials above and click Compare again.',
+          });
+        }
         const data = await page.evaluate(COMPARE_SCRIPT);
         pageData.push(data);
       } catch (err) {
@@ -1081,7 +1205,7 @@ app.post('/compare', async (req, res) => {
         await ssPage.setViewport({ width: 1280, height: 800 });
         await ssPage.setDefaultNavigationTimeout(60000);
         await navigateToPage(ssPage, pd.url);
-        const ss = await ssPage.screenshot({ type: 'png', fullPage: false });
+        const ss = await ssPage.screenshot({ type: 'png', fullPage: true });
         screenshots.push({ url: pd.url, data: ss.toString('base64') });
         await ssPage.close().catch(() => {});
       } catch (e) {
@@ -1089,9 +1213,46 @@ app.post('/compare', async (req, res) => {
       }
     }
 
+    // ─── GENERATE PER-PAGE ISSUES FROM COMPARISONS ─────────────────────────
+    // Each issue carries the url of the offending page plus the element's
+    // selector/bbox so the UI can highlight it on that page's screenshot and
+    // apply/ignore the fix.
+    const issues = [];
+    let issueSeq = 0;
+    for (const comp of comparisons) {
+      const typeLabel = comp.elementType.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
+      for (const [prop, info] of Object.entries(comp.properties)) {
+        const propLabel = prop.replace(/-/g, ' ').replace(/\b\w/g, s => s.toUpperCase());
+        for (const v of info.values) {
+          if (!v.value || v.value === info.dominant) continue;
+          const pd = pageData.find(x => x.url === v.url);
+          const elData = pd && pd.elements && pd.elements[comp.elementType];
+          const sample = (elData && elData.samples && elData.samples.find(s => s.props && s.props[prop] === v.value)) || (elData && elData.samples && elData.samples[0]) || null;
+          const isColor = /^#([0-9a-f]{3,8}|[0-9a-f]{6})$/i.test(v.value) || /^rgb/.test(v.value) || /^hsl/.test(v.value);
+          issues.push({
+            id: 'cmp-issue-' + (issueSeq++),
+            ruleId: 'compare-consistency',
+            name: typeLabel + ' ' + propLabel + ' inconsistent',
+            severity: (isColor || prop === 'font-size' || prop === 'font-family' || prop === 'padding') ? 'high' : 'medium',
+            category: 'cross-page',
+            url: v.url,
+            detail: propLabel + ' is "' + v.value + '" but the dominant value across the app is "' + info.dominant + '".',
+            recommendation: 'Apply the dominant value (' + info.dominant + ') to match the rest of the app.',
+            selector: sample ? sample.selector : null,
+            bbox: sample ? sample.bbox : null,
+            fixCss: (sample && sample.selector) ? (prop + ': ' + info.dominant + ';') : '',
+            context: comp.elementType,
+            property: prop,
+            value: v.value,
+            dominant: info.dominant
+          });
+        }
+      }
+    }
+
     // ─── GENERATE SUGGESTIONS ──────────────────────────────────────────────
     const suggestions = generateSuggestions(pageData, comparisons);
-    res.json({ pages: pageData, comparisons, screenshots, suggestions });
+    res.json({ pages: pageData, comparisons, screenshots, suggestions, issues });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1222,6 +1383,94 @@ const upload = multer({
 });
 
 // ─── COMPARE SCREENSHOTS (file upload) ─────────────────────────────────
+// Detects visual difference regions between two uploaded screenshots by
+// decoding them in the headless browser (canvas) and scanning for changed
+// pixel blocks (no native deps needed).
+async function diffImagesInBrowser(buf1, buf2) {
+  const b = await getBrowser();
+  const page = await b.newPage();
+  try {
+    return await page.evaluate(async ({ b1, b2 }) => {
+      const mime1 = b1.startsWith('iVBOR') ? 'image/png' : 'image/jpeg';
+      const mime2 = b2.startsWith('iVBOR') ? 'image/png' : 'image/jpeg';
+
+      function loadImage(b64, mime) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error('Could not decode image'));
+          img.src = 'data:' + mime + ';base64,' + b64;
+        });
+      }
+
+      const img1 = await loadImage(b1, mime1);
+      const img2 = await loadImage(b2, mime2);
+      if (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight) {
+        return { ok: false, reason: 'dimensions' };
+      }
+
+      const w = img1.naturalWidth, h = img1.naturalHeight;
+      const c1 = document.createElement('canvas'); c1.width = w; c1.height = h;
+      const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
+      const ctx1 = c1.getContext('2d'); ctx1.drawImage(img1, 0, 0);
+      const ctx2 = c2.getContext('2d'); ctx2.drawImage(img2, 0, 0);
+      const d1 = ctx1.getImageData(0, 0, w, h).data;
+      const d2 = ctx2.getImageData(0, 0, w, h).data;
+
+      const BLOCK = 32;
+      const cols = Math.ceil(w / BLOCK), rows = Math.ceil(h / BLOCK);
+      const changed = new Uint8Array(cols * rows);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const dr = Math.abs(d1[i] - d2[i]);
+          const dg = Math.abs(d1[i + 1] - d2[i + 1]);
+          const db = Math.abs(d1[i + 2] - d2[i + 2]);
+          if (dr + dg + db > 90) changed[Math.floor(y / BLOCK) * cols + Math.floor(x / BLOCK)] = 1;
+        }
+      }
+
+      const seen = new Uint8Array(cols * rows);
+      const regions = [];
+      for (let i = 0; i < cols * rows; i++) {
+        if (!changed[i] || seen[i]) continue;
+        const stack = [i];
+        seen[i] = 1;
+        let minC = i % cols, maxC = i % cols, minR = Math.floor(i / cols), maxR = Math.floor(i / cols), count = 0;
+        while (stack.length) {
+          const cur = stack.pop();
+          const cc = cur % cols, rr = Math.floor(cur / cols);
+          if (cc < minC) minC = cc; if (cc > maxC) maxC = cc;
+          if (rr < minR) minR = rr; if (rr > maxR) maxR = rr;
+          count++;
+          const nb = [cur - 1, cur + 1, cur - cols, cur + cols, cur - cols - 1, cur - cols + 1, cur + cols - 1, cur + cols + 1];
+          for (const n of nb) {
+            if (n < 0 || n >= cols * rows) continue;
+            if (changed[n] && !seen[n]) { seen[n] = 1; stack.push(n); }
+          }
+        }
+        const pad = 1;
+        const x0 = Math.max(0, minC * BLOCK - pad);
+        const y0 = Math.max(0, minR * BLOCK - pad);
+        const x1 = Math.min(w, (maxC + 1) * BLOCK + pad);
+        const y1 = Math.min(h, (maxR + 1) * BLOCK + pad);
+        regions.push({
+          x: x0, y: y0,
+          width: x1 - x0, height: y1 - y0,
+          blockCount: count,
+          area: count * BLOCK * BLOCK
+        });
+      }
+
+      const minArea = Math.max(64, (w * h) * 0.0005);
+      const filtered = regions.filter(r => r.area >= minArea).sort((a, b) => b.area - a.area).slice(0, 40);
+      return { ok: true, width: w, height: h, regions: filtered };
+    }, { b1: buf1.toString('base64'), b2: buf2.toString('base64') });
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 app.post('/compare-screenshots', upload.fields([
   { name: 'screenshot1', maxCount: 1 },
   { name: 'screenshot2', maxCount: 1 }
@@ -1230,17 +1479,13 @@ app.post('/compare-screenshots', upload.fields([
     const buf1 = req.files.screenshot1[0].buffer;
     const buf2 = req.files.screenshot2[0].buffer;
 
-    // Use built-in child_process to get image dimensions (Windows certutil base64 fallback)
-    const { spawn } = require('child_process');
-
-    // Get dimensions by reading PNG headers directly (no sharp needed)
-    function getPNGDimensions(buf) {
+    // Get dimensions by reading image headers directly (no native deps needed)
+    function getDimensions(buf) {
       if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) {
         const w = buf.readUInt32BE(16);
         const h = buf.readUInt32BE(20);
         return { width: w, height: h };
       }
-      // JPEG
       let offset = 2;
       while (offset < buf.length) {
         if (buf[offset] === 0xFF && buf[offset + 1] === 0xC0) {
@@ -1253,8 +1498,8 @@ app.post('/compare-screenshots', upload.fields([
       return { width: 0, height: 0 };
     }
 
-    const d1 = getPNGDimensions(buf1);
-    const d2 = getPNGDimensions(buf2);
+    const d1 = getDimensions(buf1);
+    const d2 = getDimensions(buf2);
     const dimStr = w => `${w.width}x${w.height}`;
 
     // General UI suggestions
@@ -1273,13 +1518,40 @@ app.post('/compare-screenshots', upload.fields([
       });
     }
 
+    // Detect visual difference regions (only meaningful when dimensions match)
+    const issues = [];
+    if (d1.width === d2.width && d1.height === d2.height) {
+      try {
+        const diff = await diffImagesInBrowser(buf1, buf2);
+        if (diff && diff.ok) {
+          diff.regions.forEach((r, i) => {
+            issues.push({
+              id: 'diff-issue-' + i,
+              ruleId: 'screenshot-diff',
+              name: 'Visual difference region ' + (i + 1),
+              severity: r.blockCount >= 10 ? 'high' : r.blockCount >= 4 ? 'medium' : 'low',
+              category: 'visual-diff',
+              detail: 'A ' + r.width + 'x' + r.height + 'px area at (' + r.x + ', ' + r.y + ') where the two screenshots differ.',
+              recommendation: 'Open both screenshots side by side in this region and unify the design (colors, spacing, fonts, layout).',
+              selector: '',
+              fixCss: '',
+              bbox: { x: r.x, y: r.y, width: r.width, height: r.height }
+            });
+          });
+        }
+      } catch (e) {
+        console.log(`  [SSDIFF] Region detection failed: ${e.message}`);
+      }
+    }
+
     res.json({
       img1: buf1.toString('base64'),
       img2: buf2.toString('base64'),
       dimensions1: dimStr(d1),
       dimensions2: dimStr(d2),
       dimensionsMatch: d1.width === d2.width && d1.height === d2.height,
-      suggestions
+      suggestions,
+      issues
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1319,7 +1591,7 @@ app.post('/scan-all', async (req, res) => {
 
     // Step 1b: Analyze the home/landing page first
     const initialUrl = page.url();
-    const initialScreenshot = await page.screenshot({ type: 'png', fullPage: false });
+    const initialScreenshot = await page.screenshot({ type: 'png', fullPage: true });
     const initialIssues = await page.evaluate(ANALYSIS_SCRIPT);
     const pageResults = [];
 
@@ -1401,7 +1673,7 @@ app.post('/scan-all', async (req, res) => {
           continue;
         }
 
-        const screenshot = await page.screenshot({ type: 'png', fullPage: false });
+        const screenshot = await page.screenshot({ type: 'png', fullPage: true });
         const issues = await page.evaluate(ANALYSIS_SCRIPT);
         const title = (await page.title()) || 'Page ' + (pageResults.length + 1);
 
