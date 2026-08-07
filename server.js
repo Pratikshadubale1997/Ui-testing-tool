@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 let puppeteer;
 try {
@@ -287,6 +288,8 @@ const ANALYSIS_SCRIPT = `
         };
       }
     } catch (e) {}
+    let elText = '';
+    try { elText = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60); } catch (e2) {}
     issues.push({
       id: 'issue-' + (issueId++),
       ruleId,
@@ -298,6 +301,7 @@ const ANALYSIS_SCRIPT = `
       recommendation: suggestion,
       fixCss,
       context,
+      elText,
       bbox,
     });
   }
@@ -1405,11 +1409,13 @@ async function diffImagesInBrowser(buf1, buf2) {
 
       const img1 = await loadImage(b1, mime1);
       const img2 = await loadImage(b2, mime2);
-      if (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight) {
-        return { ok: false, reason: 'dimensions' };
-      }
 
-      const w = img1.naturalWidth, h = img1.naturalHeight;
+      // Compare the overlapping (top-left) region even when the two
+      // screenshots have different sizes, so full-page captures of pages
+      // with different heights still produce meaningful diff regions.
+      const dimsMatch = img1.naturalWidth === img2.naturalWidth && img1.naturalHeight === img2.naturalHeight;
+      const w = Math.min(img1.naturalWidth, img2.naturalWidth);
+      const h = Math.min(img1.naturalHeight, img2.naturalHeight);
       const c1 = document.createElement('canvas'); c1.width = w; c1.height = h;
       const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
       const ctx1 = c1.getContext('2d'); ctx1.drawImage(img1, 0, 0);
@@ -1417,7 +1423,7 @@ async function diffImagesInBrowser(buf1, buf2) {
       const d1 = ctx1.getImageData(0, 0, w, h).data;
       const d2 = ctx2.getImageData(0, 0, w, h).data;
 
-      const BLOCK = 32;
+      const BLOCK = 16;
       const cols = Math.ceil(w / BLOCK), rows = Math.ceil(h / BLOCK);
       const changed = new Uint8Array(cols * rows);
       for (let y = 0; y < h; y++) {
@@ -1426,7 +1432,7 @@ async function diffImagesInBrowser(buf1, buf2) {
           const dr = Math.abs(d1[i] - d2[i]);
           const dg = Math.abs(d1[i + 1] - d2[i + 1]);
           const db = Math.abs(d1[i + 2] - d2[i + 2]);
-          if (dr + dg + db > 90) changed[Math.floor(y / BLOCK) * cols + Math.floor(x / BLOCK)] = 1;
+          if (dr + dg + db > 40) changed[Math.floor(y / BLOCK) * cols + Math.floor(x / BLOCK)] = 1;
         }
       }
 
@@ -1464,7 +1470,33 @@ async function diffImagesInBrowser(buf1, buf2) {
 
       const minArea = Math.max(64, (w * h) * 0.0005);
       const filtered = regions.filter(r => r.area >= minArea).sort((a, b) => b.area - a.area).slice(0, 40);
-      return { ok: true, width: w, height: h, regions: filtered };
+
+      // Per-region stats so each issue can describe WHAT actually differs
+      // (background/color vs text/content) with the before/after colours.
+      for (const r of filtered) {
+        const x0 = r.x, y0 = r.y;
+        const x1 = Math.min(w, r.x + r.width), y1 = Math.min(h, r.y + r.height);
+        let sr1 = 0, sg1 = 0, sb1 = 0, sr2 = 0, sg2 = 0, sb2 = 0, cnt = 0, changedCnt = 0;
+        for (let y = y0; y < y1; y++) {
+          for (let x = x0; x < x1; x++) {
+            const i = (y * w + x) * 4;
+            const dd = Math.abs(d1[i] - d2[i]) + Math.abs(d1[i + 1] - d2[i + 1]) + Math.abs(d1[i + 2] - d2[i + 2]);
+            if (dd > 40) {
+              changedCnt++;
+              sr1 += d1[i]; sg1 += d1[i + 1]; sb1 += d1[i + 2];
+              sr2 += d2[i]; sg2 += d2[i + 1]; sb2 += d2[i + 2];
+            }
+            cnt++;
+          }
+        }
+        if (changedCnt > 0) {
+          r.avg1 = [Math.round(sr1 / changedCnt), Math.round(sg1 / changedCnt), Math.round(sb1 / changedCnt)];
+          r.avg2 = [Math.round(sr2 / changedCnt), Math.round(sg2 / changedCnt), Math.round(sb2 / changedCnt)];
+        }
+        r.changeRatio = changedCnt / Math.max(1, cnt);
+      }
+
+      return { ok: true, dimsMatch, width: w, height: h, regions: filtered };
     }, { b1: buf1.toString('base64'), b2: buf2.toString('base64') });
   } finally {
     await page.close().catch(() => {});
@@ -1518,30 +1550,72 @@ app.post('/compare-screenshots', upload.fields([
       });
     }
 
-    // Detect visual difference regions (only meaningful when dimensions match)
+    // Detect visual difference regions. When the screenshots have different
+    // sizes, the overlapping (top-left) region is still compared so pages with
+    // different heights still produce useful issues.
+    function toHex(r, g, b) {
+      return '#' + [r, g, b].map(v => Math.min(255, Math.max(0, Math.round(v))).toString(16).padStart(2, '0')).join('');
+    }
     const issues = [];
-    if (d1.width === d2.width && d1.height === d2.height) {
-      try {
-        const diff = await diffImagesInBrowser(buf1, buf2);
-        if (diff && diff.ok) {
-          diff.regions.forEach((r, i) => {
-            issues.push({
-              id: 'diff-issue-' + i,
-              ruleId: 'screenshot-diff',
-              name: 'Visual difference region ' + (i + 1),
-              severity: r.blockCount >= 10 ? 'high' : r.blockCount >= 4 ? 'medium' : 'low',
-              category: 'visual-diff',
-              detail: 'A ' + r.width + 'x' + r.height + 'px area at (' + r.x + ', ' + r.y + ') where the two screenshots differ.',
-              recommendation: 'Open both screenshots side by side in this region and unify the design (colors, spacing, fonts, layout).',
-              selector: '',
-              fixCss: '',
-              bbox: { x: r.x, y: r.y, width: r.width, height: r.height }
-            });
+    let comparedRegion = null;
+    try {
+      const diff = await diffImagesInBrowser(buf1, buf2);
+      if (diff && diff.ok) {
+        comparedRegion = { width: diff.width, height: diff.height, dimensionsMatch: diff.dimsMatch };
+        diff.regions.forEach((r, i) => {
+          const dR = Math.abs((r.avg1 && r.avg1[0]) - (r.avg2 && r.avg2[0]));
+          const dG = Math.abs((r.avg1 && r.avg1[1]) - (r.avg2 && r.avg2[1]));
+          const dB = Math.abs((r.avg1 && r.avg1[2]) - (r.avg2 && r.avg2[2]));
+          const colorDelta = dR + dG + dB;
+          const isBackground = r.changeRatio > 0.6;
+          let kind;
+          if (colorDelta > 150) {
+            kind = isBackground ? 'Background colour' : 'Colour';
+          } else {
+            kind = isBackground ? 'Background layout' : 'Content';
+          }
+          const colourNote = (r.avg1 && r.avg2) ? ' (Screenshot 1: ' + toHex(r.avg1[0], r.avg1[1], r.avg1[2]) + ', Screenshot 2: ' + toHex(r.avg2[0], r.avg2[1], r.avg2[2]) + ')' : '';
+          const labelMap = {
+            'Background colour': 'Background colour inconsistent',
+            'Colour': 'Text colour inconsistent',
+            'Background layout': 'Padding/layout inconsistent',
+            'Content': 'Content inconsistent'
+          };
+          const nameLabel = labelMap[kind] || (kind + ' inconsistent');
+          let recommendation;
+          if (kind === 'Background colour') {
+            recommendation = 'The background colour in this region is different on the two pages. Match it to the dominant colour used across the rest of the app so the pages feel consistent.';
+          } else if (kind === 'Colour') {
+            recommendation = 'The text/content colour in this region differs between the two pages. Use the same colour on both pages for consistency.';
+          } else if (kind === 'Background layout') {
+            recommendation = 'The background/layout spacing in this region differs. Align padding, margins and sections so both pages look identical.';
+          } else {
+            recommendation = 'The content in this region differs. Compare both screenshots here and unify the spacing, typography and layout.';
+          }
+          issues.push({
+            id: 'diff-issue-' + i,
+            ruleId: 'screenshot-diff',
+            name: nameLabel + ' at (' + r.x + ', ' + r.y + ')',
+            severity: r.blockCount >= 10 ? 'high' : r.blockCount >= 4 ? 'medium' : 'low',
+            category: 'visual-diff',
+            detail: 'A ' + r.width + 'x' + r.height + 'px area at (' + r.x + ', ' + r.y + ') where the two screenshots differ' + colourNote + '.',
+            recommendation,
+            explanation:
+              'This ' + r.width + 'x' + r.height + 'px region at (' + r.x + ', ' + r.y + ') looks different in the two screenshots' + colourNote + '. ' +
+              (kind === 'Background colour' ? 'The background colour of this region is not the same on both pages. ' :
+                kind === 'Colour' ? 'The text/content colour in this region is not the same on both pages. ' :
+                kind === 'Background layout' ? 'The spacing, padding or layout of this region is not the same on both pages. ' :
+                'The content in this region is not the same on both pages. ') +
+              'Matching the two pages keeps the design consistent. ' +
+              'Click "Apply Fix" once the pages match, so this difference is removed from the list.',
+            selector: '',
+            fixCss: '',
+            bbox: { x: r.x, y: r.y, width: r.width, height: r.height }
           });
-        }
-      } catch (e) {
-        console.log(`  [SSDIFF] Region detection failed: ${e.message}`);
+        });
       }
+    } catch (e) {
+      console.log(`  [SSDIFF] Region detection failed: ${e.message}`);
     }
 
     res.json({
@@ -1550,6 +1624,7 @@ app.post('/compare-screenshots', upload.fields([
       dimensions1: dimStr(d1),
       dimensions2: dimStr(d2),
       dimensionsMatch: d1.width === d2.width && d1.height === d2.height,
+      comparedRegion,
       suggestions,
       issues
     });
@@ -1559,6 +1634,74 @@ app.post('/compare-screenshots', upload.fields([
 });
 
 // ─── SERVE FRONTEND ────────────────────────────────────────────────────────
+
+// ─── SCAN-ALL ISSUE ENRICHMENT ────────────────────────────────────────────
+// Gives every scan-all issue a specific heading (showing the actual difference)
+// and a plain-language explanation so each issue is easy to understand.
+// Only applied to the /scan-all endpoint; other tabs keep their current output.
+const PROP_LABELS = {
+  'font-size': 'font size',
+  'font-weight': 'font weight (boldness)',
+  'font-family': 'font family',
+  'line-height': 'line height',
+  'color': 'text colour',
+  'background': 'background colour',
+  'background-color': 'background colour',
+  'padding': 'padding',
+  'border': 'border',
+  'border-radius': 'border radius',
+  'min-height': 'minimum height'
+};
+
+function parseStyleDiffs(detail) {
+  const diffs = [];
+  String(detail || '').split(';').forEach(p => {
+    const m = p.trim().match(/^([a-zA-Z-]+):\s*(.+?)\s+vs\s+(.+)$/);
+    if (m) diffs.push({ prop: m[1], dominant: m[2].trim(), current: m[3].trim() });
+  });
+  return diffs;
+}
+
+function enrichScanAllIssue(issue) {
+  const enriched = Object.assign({}, issue);
+  const diffs = parseStyleDiffs(issue.detail);
+
+  if (diffs.length > 0) {
+    const d = diffs[0];
+    const propLabel = PROP_LABELS[d.prop] || d.prop.replace(/-/g, ' ');
+
+    // Real heading: include the actual difference instead of a generic title.
+    enriched.name = issue.name + ' - ' + d.prop + ': ' + d.dominant + ' vs ' + d.current;
+
+    // Plain-language explanation.
+    const elText = issue.elText ? '"' + issue.elText + '"' : 'an element';
+    const where = issue.context ? (' inside the "' + issue.context + '" card') : '';
+    const like = issue.name.replace(/^Inconsistent\s+/, '').toLowerCase();
+    let expl = 'This ' + (like || 'element') + ' element' + where + ' (' + elText + ') currently uses ' +
+      d.prop + ' "' + d.current + '", but the other similar elements on this page use "' + d.dominant + '".';
+    if (diffs.length > 1) {
+      const rest = diffs.slice(1).map(x => x.prop + ' "' + x.current + '" instead of "' + x.dominant + '"').join(', ');
+      expl += ' It also differs in ' + rest + '.';
+    }
+    expl += ' Elements that look alike should match, otherwise the design looks inconsistent. ' +
+      'Click "Apply Fix" to set the ' + propLabel + ' to "' + d.dominant + '" and match the rest of the page.';
+    enriched.explanation = expl;
+  } else if (issue.recommendation) {
+    enriched.explanation = 'This element does not match the other similar elements on this page. ' + issue.recommendation;
+  }
+  return enriched;
+}
+
+function enrichCrossPageIssue(issue) {
+  const enriched = Object.assign({}, issue);
+  const typeLabel = issue.context || 'element';
+  enriched.explanation =
+    'On the page ' + issue.url + ', the ' + typeLabel + ' element uses ' + issue.property +
+    ' "' + issue.value + '", but the dominant value across the rest of the app is "' + issue.dominant + '". ' +
+    'Pages in the same app should share the same look, so matching the dominant value keeps the design consistent. ' +
+    'Click "Apply Fix" to set ' + issue.property + ' to "' + issue.dominant + '".';
+  return enriched;
+}
 
 // ─── SCAN ALL PAGES OF ONE APPLICATION ─────────────────────────────────────
 app.post('/scan-all', async (req, res) => {
@@ -1706,8 +1849,8 @@ app.post('/scan-all', async (req, res) => {
 
     // Step 4: Cross-page comparison (all-values format)
     const crossPageComparisons = [];
+    const pageStyleData = [];
     if (pageResults.length >= 2) {
-      const pageStyleData = [];
 
       for (const pr of pageResults) {
         if (pr.error) continue;
@@ -1760,17 +1903,93 @@ app.post('/scan-all', async (req, res) => {
       }
     }
 
-    console.log(`  [SCAN] Done. ${pageResults.length} pages scanned, ${crossPageComparisons.length} cross-page comparisons`);
+    // ─── GENERATE CROSS-PAGE ISSUES ───────────────────────────────────────
+    // Each issue references the offending page (url) plus the element's
+    // selector/bbox so the UI can highlight it on that page's screenshot and
+    // apply/ignore the fix.
+    const crossPageIssues = [];
+    let xpSeq = 0;
+    for (const comp of crossPageComparisons) {
+      const typeLabel = comp.elementType.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
+      for (const [prop, info] of Object.entries(comp.properties)) {
+        const propLabel = prop.replace(/-/g, ' ').replace(/\b\w/g, s => s.toUpperCase());
+        for (const v of info.values) {
+          if (!v.value || v.value === info.dominant) continue;
+          const pd = pageStyleData.find(x => x.url === v.url);
+          const elData = pd && pd.elements && pd.elements[comp.elementType];
+          const sample = (elData && elData.samples && elData.samples.find(s => s.props && s.props[prop] === v.value)) || (elData && elData.samples && elData.samples[0]) || null;
+          const isColor = /^#([0-9a-f]{3,8}|[0-9a-f]{6})$/i.test(v.value) || /^rgb/.test(v.value) || /^hsl/.test(v.value);
+          crossPageIssues.push({
+            id: 'xp-issue-' + (xpSeq++),
+            ruleId: 'scanall-consistency',
+            name: typeLabel + ' ' + propLabel + ' inconsistent',
+            severity: (isColor || prop === 'font-size' || prop === 'font-family' || prop === 'padding') ? 'high' : 'medium',
+            category: 'cross-page',
+            url: v.url,
+            detail: propLabel + ' is "' + v.value + '" but the dominant value across the app is "' + info.dominant + '".',
+            recommendation: 'Apply the dominant value (' + info.dominant + ') to match the rest of the app.',
+            selector: sample ? sample.selector : null,
+            bbox: sample ? sample.bbox : null,
+            fixCss: (sample && sample.selector) ? (prop + ': ' + info.dominant + ';') : '',
+            context: comp.elementType,
+            property: prop,
+            value: v.value,
+            dominant: info.dominant
+          });
+        }
+      }
+    }
+
+    console.log(`  [SCAN] Done. ${pageResults.length} pages scanned, ${crossPageComparisons.length} cross-page comparisons, ${crossPageIssues.length} cross-page issues`);
+
+    // Enrich every issue with a specific heading and a plain-language explanation.
+    pageResults.forEach(pr => {
+      if (pr && Array.isArray(pr.issues)) pr.issues = pr.issues.map(enrichScanAllIssue);
+    });
+    const scanCrossIssues = crossPageIssues.map(enrichCrossPageIssue);
 
     res.json({
       totalPages: pageResults.length,
       pages: pageResults,
       crossPageComparisons,
+      issues: scanCrossIssues,
     });
   } catch (err) {
     console.error(`  [SCAN] Fatal error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── DISMISSED ISSUES STORE (server-side JSON file) ────────────────────
+// Persists ignored/resolved issues so they stay hidden across browsers and
+// incognito windows. The file lives at <project>/dismissed-issues.json.
+const DISMISSED_FILE = path.join(__dirname, 'dismissed-issues.json');
+let dismissedStore = {};
+try {
+  dismissedStore = JSON.parse(fs.readFileSync(DISMISSED_FILE, 'utf8'));
+} catch (e) {
+  dismissedStore = {};
+}
+function saveDismissedStore() {
+  try {
+    fs.writeFileSync(DISMISSED_FILE, JSON.stringify(dismissedStore, null, 2));
+  } catch (e) {
+    console.error('[DISMISSED] Failed to save store:', e.message);
+  }
+}
+
+app.get('/dismissed', (req, res) => {
+  res.json(dismissedStore);
+});
+
+app.post('/dismissed', (req, res) => {
+  const body = req.body || {};
+  if (typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ error: 'Expected an object' });
+  }
+  dismissedStore = body;
+  saveDismissedStore();
+  res.json({ ok: true });
 });
 
 app.get('/', (req, res) => {

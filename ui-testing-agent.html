@@ -167,7 +167,7 @@
     .issue-desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
     .issue-explanation { font-size: 12px; color: var(--text); margin-top: 6px; padding: 8px 10px; background: var(--surface); border-radius: 6px; line-height: 1.5; }
     .issue-suggestion { font-size: 12px; color: var(--success); margin-top: 4px; padding: 6px 10px; display: flex; align-items: flex-start; gap: 6px; }
-    .issue-suggestion::before { content: '💡'; font-size: 13px; }
+    .issue-suggestion::before { content: '≡ƒÆí'; font-size: 13px; }
     .issue-category {
       font-size: 10px; color: var(--text-secondary); margin-top: 2px; display: flex; gap: 4px;
     }
@@ -333,7 +333,7 @@
     <button class="tab-btn" data-tab="screenshots" onclick="switchTab('screenshots', this)">Screenshots</button>
   </div>
 
-  <!-- ─── SINGLE SCAN VIEW ──────────────────────────────────────────────── -->
+  <!-- ΓöÇΓöÇΓöÇ SINGLE SCAN VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
   <div id="scanView">
     <div class="topbar">
       <div class="logo">UI <span>Agent</span> <small>UI Testing</small></div>
@@ -385,7 +385,7 @@
     </div>
   </div>
 
-  <!-- ─── COMPARE VIEW ──────────────────────────────────────────────────── -->
+  <!-- ΓöÇΓöÇΓöÇ COMPARE VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
   <div id="compareView" style="display:none;">
     <div class="compare-input">
       <div class="row">
@@ -416,7 +416,7 @@
     </div>
   </div>
 
-  <!-- ─── SCREENSHOTS VIEW ──────────────────────────────────────────────── -->
+  <!-- ΓöÇΓöÇΓöÇ SCREENSHOTS VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
   <div id="screenshotsView" style="display:none;">
     <div class="compare-input">
       <div class="row">
@@ -433,7 +433,7 @@
           <input type="file" id="ssFile2" accept="image/png,image/jpeg" style="width:100%;padding:8px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;" />
         </div>
       </div>
-      <div class="hint">Upload two screenshots of your pages. The tool displays them side by side and provides general UI improvement suggestions.</div>
+      <div class="hint">Upload two screenshots of your pages. The tool compares them and lists the visual differences ΓÇö click an issue to highlight it on both screenshots, then Apply Fix or Ignore it.</div>
       <div id="ssStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
     <div class="content" style="height:auto;min-height:calc(100vh - 200px);">
@@ -452,7 +452,7 @@
     </div>
   </div>
 
-  <!-- ─── SCAN ALL PAGES VIEW ───────────────────────────────────────────── -->
+  <!-- ΓöÇΓöÇΓöÇ SCAN ALL PAGES VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
   <div id="scanAllView" style="display:none;">
     <div class="topbar">
       <div class="logo">UI <span>Agent</span> <small>Scan All Pages</small></div>
@@ -485,14 +485,56 @@
   <script>
     const state = { url: '', issues: [], fixes: new Map(), fixedIssues: new Set(), warnedIssues: new Set(), failedFixes: new Set(), currentFilter: 'all', resolvedCount: 0 };
 
-    // Persisted ignored issues: { [url]: [issueName, ...] } in localStorage.
-    // Ignored issues stay removed permanently across refreshes for the same URL.
+    // Persisted ignored issues: { [url]: [issueName, ...] }.
+    // Stored on the server (<project>/dismissed-issues.json) so ignored/resolved
+    // issues stay hidden across refreshes, browsers and incognito windows.
+    // localStorage is kept as a local cache only.
     let ignoredStore = {};
     try { ignoredStore = JSON.parse(localStorage.getItem('uiAgentIgnored') || '{}'); } catch (e) { ignoredStore = {}; }
     function saveIgnored() {
       try { localStorage.setItem('uiAgentIgnored', JSON.stringify(ignoredStore)); } catch (e) {}
+      fetch('/dismissed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ignoredStore)
+      }).catch(() => {});
     }
+    // Load the server store (server wins over the local cache).
+    fetch('/dismissed')
+      .then(r => r.json())
+      .then(data => { if (data && typeof data === 'object') ignoredStore = data; })
+      .catch(() => {});
     function getIgnoredNames(url) { return (url && ignoredStore[url]) || []; }
+    // Checks a single issue against the dismissed store. Resolve (Apply Fix /
+    // Re-check) stores a precise key; Ignore stores the issue title (name) in
+    // the global '*' bucket so ALL issues with the same title are hidden on
+    // every page. Legacy URL-scoped name entries are still honoured too.
+    function isIssueDismissed(url, issue) {
+      const names = getIgnoredNames(url);
+      if (names && names.length && (names.includes(dismissalKey(issue)) || names.includes(issue.name))) return true;
+      const globalNames = getIgnoredNames('*');
+      if (globalNames && globalNames.length && globalNames.includes(issue.name)) return true;
+      return false;
+    }
+    // Persists a dismissed issue (ignored or resolved via Apply Fix) so it stays
+    // hidden permanently for the same URL across refreshes and re-runs.
+    function dismissIssue(url, key) {
+      if (!url || !key) return;
+      if (!ignoredStore[url]) ignoredStore[url] = [];
+      if (!ignoredStore[url].includes(key)) ignoredStore[url].push(key);
+      saveIgnored();
+    }
+    // A precise dismissal key that identifies ONE specific issue (not its whole
+    // heading/group). Same key is used when dismissing and when filtering on load.
+    function dismissalKey(issue) {
+      if (!issue) return '';
+      if (issue.ruleId === 'screenshot-diff') return screenshotRegionKey(issue);
+      if (issue.ruleId === 'compare-consistency' || issue.ruleId === 'scanall-consistency') {
+        return 'ctx::' + (issue.context || '') + '|prop::' + (issue.property || '');
+      }
+      if (issue.selector) return (issue.ruleId || 'issue') + '::' + issue.selector;
+      return issue.name;
+    }
     const $ = id => document.getElementById(id);
     const urlInput = $('urlInput'), analyzeBtn = $('analyzeBtn');
     const dashboard = $('dashboard'), emptyState = $('emptyState');
@@ -517,7 +559,7 @@
     function setStatus(text, type = 'idle') { statusText.textContent = text; statusDot.className = 'status-dot ' + type; }
     function setProgress(pct) { progressFill.style.width = pct + '%'; }
 
-    // ─── API CALLS ─────────────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ API CALLS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     async function analyzeUrl(url) {
       const username = document.getElementById('scanUser').value.trim();
       const password = document.getElementById('scanPass').value.trim();
@@ -547,7 +589,7 @@
       return resp.json();
     }
 
-    // ─── ANALYSIS ──────────────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ ANALYSIS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     async function runAnalysis() {
       let url = urlInput.value.trim();
       if (!url) { showToast('Please enter a URL', 'warning'); return; }
@@ -600,10 +642,9 @@
         }
 
         state.url = result.url;
-        const ignoredNames = getIgnoredNames(result.url);
         let filteredCount = 0;
         state.issues = (result.issues || []).filter(i => {
-          if (ignoredNames.includes(i.name)) { filteredCount++; return false; }
+          if (isIssueDismissed(result.url, i)) { filteredCount++; return false; }
           return true;
         });
         urlDisplay.textContent = result.url;
@@ -636,7 +677,7 @@
       }
     }
 
-    // ─── RENDER ────────────────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ RENDER ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     function renderDashboard() {
       const issues = state.issues;
       const total = issues.length;
@@ -838,7 +879,7 @@
         },
         'inconsistent-text-align': {
           desc: 'Text alignment is inconsistent across similar elements (e.g., some left, some center).',
-          suggestion: 'Standardize text alignment — keep body text left-aligned and center only for headings where intentional.'
+          suggestion: 'Standardize text alignment ΓÇö keep body text left-aligned and center only for headings where intentional.'
         },
         'inconsistent-link-color': {
           desc: 'Links on the page use different colors, making the navigation feel disjointed.',
@@ -874,7 +915,7 @@
       renderDashboard();
     }
 
-    // ─── ACTIONS ───────────────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ ACTIONS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     // Re-checks the SAME url for a given issue selector and reports status.
     // Returns true if the issue is no longer present (resolved).
     async function verifyFix(issue) {
@@ -945,6 +986,8 @@
     }
     // Permanently removes a resolved issue from the list.
     function removeIssueFromList(issueId) {
+      const removed = state.issues.find(i => i.id === issueId);
+      if (removed && state.url) dismissIssue(state.url, dismissalKey(removed));
       state.issues = state.issues.filter(i => i.id !== issueId);
       state.fixedIssues.delete(issueId);
       state.warnedIssues.delete(issueId);
@@ -962,23 +1005,19 @@
     function ignoreIssue(issueId) {
       const issue = state.issues.find(i => i.id === issueId);
       if (!issue) return;
-      if (state.url) {
-        if (!ignoredStore[state.url]) ignoredStore[state.url] = [];
-        if (!ignoredStore[state.url].includes(issue.name)) ignoredStore[state.url].push(issue.name);
-        saveIgnored();
-      }
-      const removed = state.issues.filter(i => i.name === issue.name);
-      removed.forEach(i => {
-        state.fixedIssues.delete(i.id);
-        state.warnedIssues.delete(i.id);
-        state.failedFixes.delete(i.id);
-      });
+      dismissIssue('*', issue.name);
+      const removedIds = new Set(state.issues.filter(i => i.name === issue.name).map(i => i.id));
       state.issues = state.issues.filter(i => i.name !== issue.name);
+      removedIds.forEach(id => {
+        state.fixedIssues.delete(id);
+        state.warnedIssues.delete(id);
+        state.failedFixes.delete(id);
+      });
       renderDashboard();
-      showToast('Ignored ' + removed.length + ' issue' + (removed.length > 1 ? 's' : '') + ' with title "' + issue.name + '"' + (state.url ? ' - will stay hidden for this URL' : ''), 'info');
+      showToast('Ignored "' + issue.name + '" - all issues with this title will stay hidden', 'info');
     }
 
-    // ─── TAB SWITCHING ─────────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ TAB SWITCHING ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     function switchTab(tab, btn) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
@@ -988,7 +1027,7 @@
       document.getElementById('screenshotsView').style.display = tab === 'screenshots' ? '' : 'none';
     }
 
-    // ─── COMPARE API ───────────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ COMPARE API ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const compareState = { data: null, urls: [], screenshots: [], issues: [], urlMap: {}, fixed: new Set(), failed: new Set(), warned: new Set(), selected: null };
 
     async function compareUrls() {
@@ -1034,7 +1073,7 @@
         compareState.screenshots = data.screenshots || [];
         compareState.urlMap = {};
         compareState.screenshots.forEach((ss, i) => { compareState.urlMap[ss.url] = i; });
-        compareState.issues = (data.issues || []).map(i => ({ ...i }));
+        compareState.issues = (data.issues || []).map(i => ({ ...i })).filter(i => !isIssueDismissed(i.url, i));
         compareState.fixed.clear(); compareState.failed.clear(); compareState.warned.clear(); compareState.selected = null;
         renderComparison();
       } catch (err) {
@@ -1160,7 +1199,7 @@
         html += '</div></div>';
       });
 
-      // Page details — variants summary
+      // Page details ΓÇö variants summary
       html += '<div style="margin-top:20px;"><strong style="font-size:13px;">Element Variants Per Page</strong></div>';
       html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">How many different visual styles exist per element type on each page (0 = all consistent).</div>';
       html += '<table class="comp-table"><tr><th>Page</th>';
@@ -1293,6 +1332,7 @@
       showToast('Applying fix and re-checking on ' + issue.url + '...', 'info');
       const resolved = await verifyCompareFix(issue);
       if (resolved) {
+        dismissIssue(issue.url, dismissalKey(issue));
         removeCompareIssue(key);
         showToast(issue.name + ': Resolved! Removed from list', 'success');
       } else {
@@ -1307,6 +1347,7 @@
       showToast('Re-checking...', 'info');
       const resolved = await verifyCompareFix(issue);
       if (resolved) {
+        dismissIssue(issue.url, dismissalKey(issue));
         removeCompareIssue(key);
         showToast(issue.name + ': Resolved! Removed from list', 'success');
       } else {
@@ -1331,19 +1372,26 @@
     function ignoreCompareIssue(key) {
       const issue = compareState.issues.find(i => i.id === key);
       if (!issue) return;
-      const pageKey = issue.url;
-      if (pageKey) {
-        if (!ignoredStore[pageKey]) ignoredStore[pageKey] = [];
-        if (!ignoredStore[pageKey].includes(issue.name)) ignoredStore[pageKey].push(issue.name);
-        saveIgnored();
-      }
-      removeCompareIssue(key);
+      dismissIssue('*', issue.name);
+      const removedIds = new Set(compareState.issues.filter(i => i.name === issue.name).map(i => i.id));
+      compareState.issues = compareState.issues.filter(i => i.name !== issue.name);
+      removedIds.forEach(id => {
+        compareState.fixed.delete(id);
+        compareState.warned.delete(id);
+        compareState.failed.delete(id);
+      });
       renderComparison();
-      showToast('Ignored "' + issue.name + '" - will stay hidden for this URL', 'info');
+      showToast('Ignored "' + issue.name + '" - all issues with this title will stay hidden', 'info');
     }
 
-    // ─── SCREENSHOT COMPARE ────────────────────────────────────────────────
-    const ssCompareState = { data: null, issues: [], fixed: new Set(), failed: new Set(), warned: new Set(), selected: null };
+    // ΓöÇΓöÇΓöÇ SCREENSHOT COMPARE ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    const ssCompareState = { data: null, issues: [], fixed: new Set(), failed: new Set(), warned: new Set(), selected: null, file1Name: '', file2Name: '' };
+    const SCREENSHOT_KEY = '__screenshots__';
+    // Stable dismissal key for screenshot diff regions (location-based, tolerant of small shifts).
+    function screenshotRegionKey(issue) {
+      const b = issue.bbox || {};
+      return 'region-' + Math.round((b.x || 0) / 10) + '-' + Math.round((b.y || 0) / 10);
+    }
 
     async function compareScreenshots() {
       const f1 = document.getElementById('ssFile1').files[0];
@@ -1366,8 +1414,10 @@
         ssStatus.textContent = 'Comparison complete';
         setTimeout(() => { ssStatus.style.display = 'none'; }, 3000);
         ssCompareState.data = data;
-        ssCompareState.issues = (data.issues || []).map(i => ({ ...i }));
+        ssCompareState.issues = (data.issues || []).map(i => ({ ...i })).filter(i => !isIssueDismissed(SCREENSHOT_KEY, i));
         ssCompareState.fixed.clear(); ssCompareState.failed.clear(); ssCompareState.warned.clear(); ssCompareState.selected = null;
+        ssCompareState.file1Name = f1.name;
+        ssCompareState.file2Name = f2.name;
         renderScreenshotComparison(data);
       } catch (err) {
         ssStatus.textContent = 'Error: ' + err.message;
@@ -1376,38 +1426,102 @@
       }
     }
 
+    function regionsOverlap(a, b) {
+      if (!a || !b) return false;
+      const ix = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+      const iy = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+      const inter = ix * iy;
+      const origArea = (a.width || 0) * (a.height || 0);
+      return origArea > 0 && inter / origArea > 0.3;
+    }
+
+    // Re-runs the comparison on the current screenshot files. Returns true if the
+    // issue's region still differs (i.e. the fix is NOT verified yet). If the user
+    // re-selected new screenshots, refreshes the whole comparison display too.
+    async function recompareScreenshotIssue(key) {
+      const f1 = document.getElementById('ssFile1').files[0];
+      const f2 = document.getElementById('ssFile2').files[0];
+      const original = ssCompareState.issues.find(i => i.id === key);
+      if (!f1 || !f2) return true;
+      if (!original) return false;
+
+      const formData = new FormData();
+      formData.append('screenshot1', f1);
+      formData.append('screenshot2', f2);
+      const res = await fetch('/compare-screenshots', { method: 'POST', body: formData });
+      if (!res.ok) return true;
+      const data = await res.json();
+      const freshIssues = data.issues || [];
+      const stillPresent = original.bbox ? freshIssues.some(ni => regionsOverlap(original.bbox, ni.bbox)) : freshIssues.length > 0;
+
+      const filesChanged = ssCompareState.file1Name !== f1.name || ssCompareState.file2Name !== f2.name;
+      if (filesChanged && ssCompareState.data) {
+        ssCompareState.data = data;
+        ssCompareState.file1Name = f1.name;
+        ssCompareState.file2Name = f2.name;
+        const oldFailed = new Set(ssCompareState.failed);
+        const oldWarned = new Set(ssCompareState.warned);
+        ssCompareState.issues = (freshIssues || []).map(i => ({ ...i })).filter(i => !isIssueDismissed(SCREENSHOT_KEY, i));
+        ssCompareState.failed = new Set();
+        ssCompareState.warned = new Set();
+        if (stillPresent) {
+          const matched = ssCompareState.issues.find(ni => original.bbox && ni.bbox && regionsOverlap(original.bbox, ni.bbox));
+          if (matched) {
+            ssCompareState.failed.add(matched.id);
+            ssCompareState.warned.add(matched.id);
+            ssCompareState.selected = matched.id;
+          }
+        }
+        renderScreenshotComparisonForState();
+      }
+      return stillPresent;
+    }
+
     function renderScreenshotComparison(data) {
       const ssDash = document.getElementById('ssDashboard');
       document.getElementById('ssSummary').textContent = data.dimensions1 + ' vs ' + data.dimensions2;
 
       let html = '';
 
-      // Side by side images (screenshot 1 is interactive for highlighting)
+      // Side by side images (both interactive for highlighting)
       html += '<div class="comp-screenshot-grid">';
       html += '<div class="comp-screenshot-item" id="ssPvWrap">' +
         '<img id="ssPvImg" src="data:image/png;base64,' + data.img1 + '" alt="Screenshot 1" />' +
         '<div class="pv-highlight" id="ssPvHighlight"></div>' +
         '<div class="label">Screenshot 1 (' + data.dimensions1 + ') - click issues to highlight</div></div>';
-      html += '<div class="comp-screenshot-item"><img src="data:image/png;base64,' + data.img2 + '" alt="Screenshot 2" /><div class="label">Screenshot 2 (' + data.dimensions2 + ')</div></div>';
+      html += '<div class="comp-screenshot-item" id="ssPv2Wrap">' +
+        '<img id="ssPv2Img" src="data:image/png;base64,' + data.img2 + '" alt="Screenshot 2" />' +
+        '<div class="pv-highlight" id="ssPv2Highlight"></div>' +
+        '<div class="label">Screenshot 2 (' + data.dimensions2 + ') - click issues to highlight</div></div>';
       html += '</div>';
 
       // Diff issues (click to highlight on screenshot 1)
       if (ssCompareState.issues.length > 0) {
-        html += '<div style="margin-top:16px;"><strong style="font-size:13px;">Visual Differences <span style="color:var(--text-secondary);font-weight:400;">(click to highlight)</span></strong></div>';
+        html += '<div style="margin-top:16px;"><strong style="font-size:13px;">Visual Differences <span style="color:var(--text-secondary);font-weight:400;">(click to highlight on the screenshot)</span></strong></div>';
         html += '<div class="issue-list">';
         ssCompareState.issues.forEach(issue => {
           const isWarned = ssCompareState.warned.has(issue.id);
           const isFailed = ssCompareState.failed.has(issue.id);
+          const bbox = issue.bbox;
+          const loc = (bbox && bbox.x !== undefined) ? 'at (' + bbox.x + ', ' + bbox.y + ') - ' + bbox.width + 'x' + bbox.height + 'px' : '';
           html += '<div class="issue-item severity-' + issue.severity + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (ssCompareState.selected === issue.id ? ' selected' : '') + '" onclick="highlightScreenshotIssue(\'' + issue.id + '\', event)">';
           html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
           html += '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>';
-          if (issue.recommendation) html += '<div class="issue-suggestion">' + escapeHtml(issue.recommendation) + '</div>';
+          if (issue.explanation) {
+            html += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
+          } else if (issue.recommendation) {
+            html += '<div class="issue-suggestion">' + escapeHtml(issue.recommendation) + '</div>';
+          }
+          html += '<div class="issue-category">' +
+            (loc ? '<span style="color:var(--primary);font-weight:600;">' + escapeHtml(loc) + '</span>' : '') +
+            '<span>' + (issue.category || 'visual-diff') + '</span></div>';
           html += '<div class="issue-actions">';
           html += '<button class="btn-fix" onclick="applyScreenshotFix(\'' + issue.id + '\')">Apply Fix</button>';
           html += '<button class="btn-ignore" onclick="ignoreScreenshotIssue(\'' + issue.id + '\')">Ignore Issue</button>';
           if (isFailed) html += '<button class="btn-recheck" onclick="recheckScreenshotIssue(\'' + issue.id + '\')">Re-check</button>';
           html += '</div>';
-          if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present</div>';
+          if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
+          if (isFailed) html += '<div class="warning-badge">&#9888; Fix not verified - issue still present</div>';
           html += '</div>';
         });
         html += '</div>';
@@ -1421,16 +1535,10 @@
           html += '<div class="empty-state"><h3>No visual differences</h3><p>The two screenshots look identical in the checked regions.</p></div>';
         }
       } else {
-        html += '<div style="color:var(--danger);font-size:13px;padding:8px 0;">Screenshots have different dimensions. Resize to the same resolution before comparing.</div>';
-      }
-
-      // Suggestions
-      if (data.suggestions && data.suggestions.length > 0) {
-        html += '<div style="margin-top:16px;"><strong style="font-size:13px;">Suggestions</strong></div>';
-        data.suggestions.forEach(sug => {
-          const sevColor = sug.severity === 'high' ? 'var(--danger)' : sug.severity === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
-          html += '<div class="comp-card"><div class="comp-card-header"><span>' + sug.type.replace(/-/g, ' ') + '</span><span style="color:' + sevColor + ';font-weight:400;">' + sug.severity + '</span></div><div class="comp-card-body" style="font-size:12px;color:var(--text-primary);">' + escapeHtml(sug.suggestion) + '</div></div>';
-        });
+        html += '<div style="color:var(--warning);font-size:13px;padding:8px 0;">Screenshots have different sizes (' + data.dimensions1 + ' vs ' + data.dimensions2 + '). Compared the overlapping region' + (data.comparedRegion ? ' (' + data.comparedRegion.width + 'x' + data.comparedRegion.height + 'px)' : '') + ' - take screenshots at the same size for a complete comparison.</div>';
+        if (ssCompareState.issues.length === 0) {
+          html += '<div class="empty-state"><h3>No visual differences</h3><p>No differences found in the overlapping region.</p></div>';
+        }
       }
 
       ssDash.innerHTML = html;
@@ -1467,26 +1575,57 @@
       hl.style.width = box.w + 'px';
       hl.style.height = box.h + 'px';
       hl.classList.add('show');
+
+      const pvImg2 = document.getElementById('ssPv2Img');
+      const hl2 = document.getElementById('ssPv2Highlight');
+      const wrap2 = document.getElementById('ssPv2Wrap');
+      if (pvImg2 && hl2 && wrap2 && pvImg2.naturalWidth > 0) {
+        const box2 = computeHighlightBox(wrap2, pvImg2, bbox);
+        if (box2) {
+          hl2.style.left = box2.x + 'px';
+          hl2.style.top = box2.y + 'px';
+          hl2.style.width = box2.w + 'px';
+          hl2.style.height = box2.h + 'px';
+          hl2.classList.add('show');
+        }
+      }
     }
 
     async function applyScreenshotFix(key) {
       const issue = ssCompareState.issues.find(i => i.id === key);
       if (!issue) return;
-      if (issue.recommendation) {
-        showToast('Applied: ' + issue.recommendation, 'success');
+      showToast('Applying fix and re-checking...', 'info');
+      const stillPresent = await recompareScreenshotIssue(key);
+      if (!stillPresent) {
+        ssCompareState.failed.delete(key);
+        ssCompareState.warned.delete(key);
+        dismissIssue(SCREENSHOT_KEY, dismissalKey(issue));
+        removeScreenshotIssue(key);
+        showToast(issue.name + ': Resolved! Removed from list', 'success');
       } else {
-        showToast('Applied suggested fix for ' + issue.name, 'success');
+        ssCompareState.failed.add(key);
+        ssCompareState.warned.add(key);
+        showToast('Warning: ' + issue.name + ' still present. Use Re-check to verify again.', 'warning');
       }
-      removeScreenshotIssue(key);
       renderScreenshotComparisonForState();
     }
 
     async function recheckScreenshotIssue(key) {
       const issue = ssCompareState.issues.find(i => i.id === key);
       if (!issue) return;
-      ssCompareState.warned.delete(key);
-      ssCompareState.failed.delete(key);
-      showToast('Re-checked: ' + issue.name, 'info');
+      showToast('Re-checking...', 'info');
+      const stillPresent = await recompareScreenshotIssue(key);
+      if (!stillPresent) {
+        ssCompareState.failed.delete(key);
+        ssCompareState.warned.delete(key);
+        dismissIssue(SCREENSHOT_KEY, dismissalKey(issue));
+        removeScreenshotIssue(key);
+        showToast(issue.name + ': Resolved! Removed from list', 'success');
+      } else {
+        ssCompareState.failed.add(key);
+        ssCompareState.warned.add(key);
+        showToast('Warning: ' + issue.name + ' still present!', 'warning');
+      }
       renderScreenshotComparisonForState();
     }
 
@@ -1500,9 +1639,10 @@
     function ignoreScreenshotIssue(key) {
       const issue = ssCompareState.issues.find(i => i.id === key);
       if (!issue) return;
+      dismissIssue(SCREENSHOT_KEY, dismissalKey(issue));
       removeScreenshotIssue(key);
       renderScreenshotComparisonForState();
-      showToast('Ignored "' + issue.name + '"', 'info');
+      showToast('Ignored "' + issue.name + '" - will stay hidden for these screenshots', 'info');
     }
 
     // Re-render the whole screenshot comparison from stored data.
@@ -1515,7 +1655,7 @@
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // ─── SCAN ALL PAGES ──────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ SCAN ALL PAGES ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     const scanAllState = { pages: [], crossComparisons: [], fixed: new Set(), failed: new Set(), warned: new Set(), selected: null };
 
     function setScanAllStatus(text, type = 'idle') {
@@ -1559,7 +1699,7 @@
 
         scanAllState.pages = (data.pages || []).map((p, idx) => {
           p._idx = idx;
-          p.issues = (p.issues || []).map(i => ({ ...i, _key: idx + '-' + i.id }));
+          p.issues = (p.issues || []).map(i => ({ ...i, _key: idx + '-' + i.id })).filter(i => !isIssueDismissed(p.url, i));
           return p;
         });
         scanAllState.crossComparisons = data.crossPageComparisons || [];
@@ -1693,8 +1833,12 @@
           ? '<span class="issue-severity" style="background:var(--success-bg);color:var(--success);">Resolved</span>'
           : '<span class="issue-severity">' + issue.severity + '</span>') + '</div>';
       html += '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>';
-      if (help.desc) html += '<div class="issue-explanation">' + help.desc + '</div>';
-      if (help.suggestion) html += '<div class="issue-suggestion">' + help.suggestion + '</div>';
+      if (issue.explanation) {
+        html += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
+      } else {
+        if (help.desc) html += '<div class="issue-explanation">' + help.desc + '</div>';
+        if (help.suggestion) html += '<div class="issue-suggestion">' + help.suggestion + '</div>';
+      }
       html += '<div class="issue-category">' +
         (issue.context ? '<span style="color:var(--primary);font-weight:600;">Card: ' + escapeHtml(issue.context) + '</span>' : '') +
         '<span>' + (issue.category || '') + '</span><span>' + escapeHtml(issue.selector) + '</span></div>';
@@ -1870,6 +2014,7 @@
       showToast('Applying fix and re-checking on ' + page.url + '...', 'info');
       const resolved = await verifyScanAllFix(page, issue);
       if (resolved) {
+        dismissIssue(page.url, dismissalKey(issue));
         removeScanAllIssue(key);
         showToast(issue.name + ': Resolved! Removed from list', 'success');
       } else {
@@ -1885,6 +2030,7 @@
       showToast('Re-checking...', 'info');
       const resolved = await verifyScanAllFix(page, issue);
       if (resolved) {
+        dismissIssue(page.url, dismissalKey(issue));
         removeScanAllIssue(key);
         showToast(issue.name + ': Resolved! Removed from list', 'success');
       } else {
@@ -1910,18 +2056,22 @@
       const page = scanAllState.pages[pageIdx];
       const issue = page && page.issues.find(i => i._key === key);
       if (!issue) return;
-      const pageKey = page.url;
-      if (pageKey) {
-        if (!ignoredStore[pageKey]) ignoredStore[pageKey] = [];
-        if (!ignoredStore[pageKey].includes(issue.name)) ignoredStore[pageKey].push(issue.name);
-        saveIgnored();
-      }
-      removeScanAllIssue(key);
+      dismissIssue('*', issue.name);
+      const removedKeys = new Set();
+      scanAllState.pages.forEach(p => {
+        (p.issues || []).forEach(i => { if (i.name === issue.name) removedKeys.add(i._key); });
+        p.issues = (p.issues || []).filter(i => i.name !== issue.name);
+      });
+      removedKeys.forEach(k => {
+        scanAllState.fixed.delete(k);
+        scanAllState.warned.delete(k);
+        scanAllState.failed.delete(k);
+      });
       renderScanAllResults();
-      showToast('Ignored "' + issue.name + '" - will stay hidden for this URL', 'info');
+      showToast('Ignored "' + issue.name + '" - all issues with this title will stay hidden', 'info');
     }
 
-    // ─── BINDINGS ──────────────────────────────────────────────────────────
+    // ΓöÇΓöÇΓöÇ BINDINGS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     $('analyzeBtn').addEventListener('click', runAnalysis);
     $('scanAllBtn').addEventListener('click', scanAllPages);
     $('compareBtn').addEventListener('click', compareUrls);
