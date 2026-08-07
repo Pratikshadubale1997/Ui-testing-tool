@@ -1,0 +1,29 @@
+{
+  "https://nr.clientportal.cloud/#/contracten-details": [
+    "Inconsistent SPAN bold weight",
+    "Inconsistent Card Margin",
+    "Inconsistent button styles",
+    "Inconsistent BUTTON bold weight"
+  ],
+  "https://nr.clientportal.cloud/#/contacten-details": [
+    "inconsistent-font-weight::div.card-top-header:nth-child(1) > div.flex.items-center > div.flex.items-center > span.px-2.5.py-0.5",
+    "inconsistent-font-weight::div.overflow-auto.h-[calc(50vh_-_180px)] > div.overflow-hidden.text-sm > div.grid.grid-cols-[110px_100px_1fr_120px] > span:nth-child(1)",
+    "inconsistent-font-weight::div.overflow-auto.h-[calc(50vh_-_180px)] > div.overflow-hidden.text-sm > div.grid.grid-cols-[110px_100px_1fr_120px] > span:nth-child(2)",
+    "inconsistent-font-weight::div.overflow-auto.h-[calc(50vh_-_180px)] > div.overflow-hidden.text-sm > div.grid.grid-cols-[110px_100px_1fr_120px] > span:nth-child(3)"
+  ],
+  "*": [
+    "Inconsistent SPAN bold weight",
+    "Heading3 Width inconsistent",
+    "Inconsistent DIV bold weight - font-size: 16px vs 14px"
+  ],
+  "__screenshots__": [
+    "region-0-0",
+    "region-62-19",
+    "region-131-19",
+    "region-16-19",
+    "region-166-19",
+    "region-10-2",
+    "region-78-19",
+    "region-106-19"
+  ]
+}
