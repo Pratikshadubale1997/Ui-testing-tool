@@ -4,17 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UI Testing Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --bg: #0f172a; --surface: #1e293b; --surface-2: #334155;
-      --border: #475569; --text: #f1f5f9; --text-secondary: #94a3b8;
-      --primary: #3b82f6; --primary-dark: #2563eb;
-      --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
-      --danger-bg: rgba(239,68,68,0.12); --warning-bg: rgba(245,158,11,0.12); --success-bg: rgba(34,197,94,0.12);
-      --radius: 10px; --radius-lg: 16px; --shadow: 0 4px 24px rgba(0,0,0,0.3);
+      --bg: #E5ECE9; --surface: #ffffff; --surface-2: #E5ECE9;
+      --border: #41808B; --text: #1a1a1a; --text-secondary: #41808B;
+      --primary: #7FB800; --primary-dark: #57A3AF;
+      --success: #7FB800; --warning: #F46036; --danger: #F46036;
+      --danger-bg: rgba(244,96,54,0.12); --warning-bg: rgba(244,96,54,0.12); --success-bg: rgba(127,184,0,0.12);
+      --radius: 10px; --radius-lg: 16px; --shadow: 0 4px 24px rgba(0,0,0,0.1);
     }
-    body { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+    body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
     
     /* Top Bar */
     .topbar {
@@ -87,7 +90,7 @@
     .progress-bar-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, var(--primary), var(--success));
+      background: linear-gradient(90deg, var(--primary), #7FB800);
       transition: width 0.3s;
     }
 
@@ -155,7 +158,7 @@
     .issue-item.severity-low { border-left-color: var(--success); }
     .issue-item.fixed { opacity: 0.6; }
     .issue-item.fixed .issue-title { text-decoration: line-through; }
-    .issue-item.warning { border-left-color: var(--danger) !important; background: rgba(239,68,68,0.08); }
+    .issue-item.warning { border-left-color: var(--danger) !important; background: rgba(244,96,54,0.08); }
     .issue-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .issue-title { font-size: 13px; font-weight: 600; flex: 1; }
     .issue-severity {
@@ -266,8 +269,8 @@
     .pv-highlight {
       position: absolute;
       border: 2px solid var(--danger);
-      background: rgba(239, 68, 68, 0.18);
-      box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.55);
+      background: rgba(244, 96, 54, 0.18);
+      box-shadow: 0 0 0 9999px rgba(65, 128, 139, 0.35);
       border-radius: 3px;
       pointer-events: none;
       display: none;
@@ -276,7 +279,7 @@
     }
     .pv-highlight.show { display: block; }
     .issue-item.clickable { cursor: pointer; }
-    .issue-item.selected { outline: 2px solid var(--primary); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25); }
+    .issue-item.selected { outline: 2px solid var(--primary); box-shadow: 0 0 0 4px rgba(127, 184, 0, 0.25); }
 
     /* Empty */
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
@@ -322,6 +325,17 @@
     .toast.warning { background: var(--warning); color: #000; }
     .toast.error { background: var(--danger); color: #fff; }
     .toast.info { background: var(--primary); color: #fff; }
+
+    /* Password toggle */
+    .pw-wrap { position: relative; flex: 1; min-width: 120px; }
+    .pw-wrap input { width: 100%; box-sizing: border-box; padding-right: 36px; }
+    .pw-toggle {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; padding: 4px;
+      color: var(--text-secondary); font-size: 16px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pw-toggle:hover { color: var(--text); }
   </style>
 </head>
 <body>
@@ -341,9 +355,12 @@
         <input type="url" id="urlInput" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" />
         <button id="analyzeBtn">Analyze</button>
       </div>
-      <div class="row" style="gap:6px;flex:1;min-width:280px;">
+      <div class="row" style="display:flex;gap:6px;flex:1;min-width:280px;align-items:center;">
         <input id="scanUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
-        <input id="scanPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
+        <div class="pw-wrap">
+          <input id="scanPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
+          <button class="pw-toggle" onclick="togglePw('scanPass', this)" title="Show/Hide password">&#128065;</button>
+        </div>
       </div>
       <div class="status-badge">
         <span class="status-dot idle" id="statusDot"></span>
@@ -393,9 +410,12 @@
         <button id="compareBtn" style="padding:10px 24px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
       </div>
       <textarea id="compareUrls" placeholder="Enter URLs, one per line&#10;https://example.com/page1&#10;https://example.com/page2&#10;https://example.com/page3"></textarea>
-      <div class="row" style="margin-top:8px;gap:8px;">
+      <div class="row" style="display:flex;margin-top:8px;gap:8px;align-items:center;">
         <input id="loginUser" type="text" placeholder="Username (if login required)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-        <input id="loginPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+        <div class="pw-wrap">
+          <input id="loginPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+          <button class="pw-toggle" onclick="togglePw('loginPass', this)" title="Show/Hide password">&#128065;</button>
+        </div>
       </div>
       <div class="hint">Enter at least 2 URLs. The agent extracts visual properties (colors, fonts, sizes, spacing) from common elements and reports inconsistencies. If pages require login, provide credentials above.</div>
       <div id="compareStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
@@ -417,7 +437,7 @@
   </div>
 
   <!-- ΓöÇΓöÇΓöÇ SCREENSHOTS VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
-  <div id="screenshotsView" style="display:none;">
+  <div id="screenshotsView" style="display:none;position:relative;z-index:1;background:var(--bg);">
     <div class="compare-input">
       <div class="row">
         <span style="font-weight:600;font-size:14px;">Compare Screenshots</span>
@@ -436,13 +456,13 @@
       <div class="hint">Upload two screenshots of your pages. The tool compares them and lists the visual differences ΓÇö click an issue to highlight it on both screenshots, then Apply Fix or Ignore it.</div>
       <div id="ssStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
-    <div class="content" style="height:auto;min-height:calc(100vh - 200px);">
-      <div class="panel" style="grid-column:1/-1;">
+    <div style="padding:20px 24px;">
+      <div class="panel">
         <div class="panel-header">
           <span>Screenshot Comparison</span>
           <span id="ssSummary" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
         </div>
-        <div class="panel-body" id="ssDashboard">
+        <div class="panel-body" id="ssDashboard" style="min-height:400px;">
           <div class="empty-state">
             <h3>Upload screenshots</h3>
             <p>Upload two screenshots of your pages to compare them visually and get best-practice suggestions.</p>
@@ -460,9 +480,12 @@
         <input type="url" id="scanAllUrl" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" />
         <button id="scanAllBtn" style="background:var(--success);color:#000;">Scan All Pages</button>
       </div>
-      <div class="row" style="gap:6px;flex:1;min-width:280px;">
+      <div class="row" style="display:flex;gap:6px;flex:1;min-width:280px;align-items:center;">
         <input id="scanAllUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
-        <input id="scanAllPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
+        <div class="pw-wrap">
+          <input id="scanAllPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
+          <button class="pw-toggle" onclick="togglePw('scanAllPass', this)" title="Show/Hide password">&#128065;</button>
+        </div>
       </div>
       <div class="status-badge">
         <span class="status-dot idle" id="scanAllDot"></span>
@@ -547,6 +570,15 @@
     const previewWrap = $('previewWrap');
     const urlDisplay = $('urlDisplay');
     const toastContainer = $('toastContainer');
+
+    function togglePw(inputId, btn) {
+      const inp = document.getElementById(inputId);
+      if (!inp) return;
+      const isPw = inp.type === 'password';
+      inp.type = isPw ? 'text' : 'password';
+      btn.innerHTML = isPw ? '&#128064;' : '&#128065;';
+      btn.title = isPw ? 'Hide password' : 'Show password';
+    }
 
     function showToast(msg, type = 'info') {
       const el = document.createElement('div');
@@ -1025,6 +1057,11 @@
       document.getElementById('scanAllView').style.display = tab === 'scanall' ? '' : 'none';
       document.getElementById('compareView').style.display = tab === 'compare' ? '' : 'none';
       document.getElementById('screenshotsView').style.display = tab === 'screenshots' ? '' : 'none';
+      // Reset screenshots panel to empty state if no comparison done
+      if (tab === 'screenshots' && !ssCompareState.data) {
+        document.getElementById('ssDashboard').innerHTML = '<div class="empty-state"><h3>Upload screenshots</h3><p>Upload two screenshots of your pages to compare them visually and get best-practice suggestions.</p></div>';
+        document.getElementById('ssSummary').textContent = '';
+      }
     }
 
     // ΓöÇΓöÇΓöÇ COMPARE API ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -1094,27 +1131,10 @@
       const totalProps = comparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
       document.getElementById('compSummary').textContent = (compareState.issues.length || totalProps) + ' differences across ' + pages.length + ' pages';
 
-      let html = '';
-
-      // Screenshots (with highlight overlay)
-      if (compareState.screenshots.length > 0) {
-        html += '<div style="margin:16px 0;"><strong style="font-size:13px;">Page Previews</strong></div>';
-        html += '<div class="comp-screenshot-grid">';
-        compareState.screenshots.forEach((ss, i) => {
-          html += '<div class="comp-screenshot-item" id="cmpPvWrap-' + i + '">';
-          if (ss.data) {
-            html += '<img id="cmpPvImg-' + i + '" src="data:image/png;base64,' + ss.data + '" alt="' + escapeHtml(ss.url) + '" />';
-            html += '<div class="pv-highlight" id="cmpPvHighlight-' + i + '"></div>';
-          } else {
-            html += '<div style="padding:40px;text-align:center;color:var(--text-secondary);">Failed</div>';
-          }
-          html += '<div class="label">' + escapeHtml(ss.url) + '</div></div>';
-        });
-        html += '</div>';
-      }
+      let leftHtml = '';
 
       // Interactive cross-page issues (click to highlight on the page screenshot)
-      html += renderCompareIssues();
+      leftHtml += renderCompareIssues();
 
       if (comparisons.length === 0 && compareState.issues.length === 0) {
         html += '<div class="empty-state"><h3>No inconsistencies found</h3><p>All pages appear visually consistent for the checked element types.</p></div>';
@@ -1130,7 +1150,7 @@
         return;
       }
 
-      html += '<div style="margin-bottom:16px;"><strong style="font-size:13px;">Visual Differences Across All Pages</strong></div>';
+      leftHtml += '<div style="margin-bottom:16px;"><strong style="font-size:13px;">Differences Found</strong></div>';
 
       const propGroups = {
         'Size': ['width', 'height', 'min-height', 'max-width', 'min-width', 'font-size', 'line-height', 'letter-spacing'],
@@ -1147,26 +1167,28 @@
         return 'Other';
       }
 
-      function isColorVal(v) {
-        return /^#([0-9a-f]{3,8}|[0-9a-f]{6})$/i.test(v) || /^rgb/.test(v) || /^hsl/.test(v);
+      function friendlyPropName(prop) {
+        const map = {
+          'font-size': 'Text Size', 'font-family': 'Font', 'font-weight': 'Text Weight',
+          'color': 'Text Color', 'background-color': 'Background Color', 'line-height': 'Line Spacing',
+          'padding': 'Inner Spacing', 'padding-top': 'Top Padding', 'padding-bottom': 'Bottom Padding',
+          'padding-left': 'Left Padding', 'padding-right': 'Right Padding',
+          'margin': 'Outer Spacing', 'margin-top': 'Top Margin', 'margin-bottom': 'Bottom Margin',
+          'border': 'Border', 'border-radius': 'Corner Roundness',
+          'width': 'Width', 'height': 'Height', 'min-height': 'Min Height',
+          'text-align': 'Text Alignment', 'text-transform': 'Text Style', 'letter-spacing': 'Letter Spacing',
+          'opacity': 'Transparency', 'box-shadow': 'Shadow'
+        };
+        return map[prop] || prop.replace(/-/g, ' ').replace(/\b\w/g, s => s.toUpperCase());
       }
 
       comparisons.forEach(comp => {
         const typeLabel = comp.elementType.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
         const propCount = Object.keys(comp.properties).length;
-        html += '<div class="comp-card">';
-        html += '<div class="comp-card-header"><span>' + typeLabel + '</span><span style="color:var(--danger);font-weight:400;">' + propCount + ' property differences across ' + comp.totalPages + ' pages</span></div>';
-        html += '<div class="comp-card-body">';
+        leftHtml += '<div class="comp-card">';
+        leftHtml += '<div class="comp-card-header"><span>' + typeLabel + ' has ' + propCount + ' inconsistencies</span></div>';
+        leftHtml += '<div class="comp-card-body">';
 
-        // Sample text
-        if (comp.sample && comp.sample.text) {
-          html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">Sample: "' + escapeHtml(comp.sample.text) + '"</div>';
-        }
-
-        // Get all unique URLs for this element type
-        const allUrls = [...new Set(pages.map(p => p.url))];
-
-        // Group properties by category
         const grouped = {};
         for (const [prop, info] of Object.entries(comp.properties)) {
           const g = getPropGroup(prop);
@@ -1175,75 +1197,88 @@
         }
 
         for (const [groupName, items] of Object.entries(grouped)) {
-          html += '<div style="font-size:11px;color:var(--primary);font-weight:600;margin:8px 0 4px;text-transform:uppercase;letter-spacing:0.5px;">' + groupName + '</div>';
-          html += '<table class="comp-table"><tr><th>Property</th>';
-          allUrls.forEach(u => { html += '<th style="font-size:10px;">' + escapeHtml(u) + '</th>'; });
-          html += '</tr>';
-
+          leftHtml += '<div style="margin:8px 0 4px;font-size:12px;font-weight:600;color:var(--primary);">' + groupName + '</div>';
           items.forEach(({ property: prop, info }) => {
-            html += '<tr><td>' + prop + '</td>';
-            allUrls.forEach(u => {
-              const match = info.values.find(v => v.url === u);
-              const val = match && match.value ? match.value : '-';
-              const isDiff = match && match.value && match.value !== info.dominant;
-              const valEsc = escapeHtml(val);
-              const colorSwatch = isColorVal(val) ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + val + ';border:1px solid var(--border);vertical-align:middle;margin-right:3px;"></span>' : '';
-              html += '<td class="' + (isDiff ? 'diff' : 'same') + '">' + colorSwatch + valEsc + '</td>';
-            });
-            html += '</tr>';
+            const propName = friendlyPropName(prop);
+            const vals = [...new Set(info.values.map(v => v.value).filter(v => v))];
+            if (vals.length >= 2) {
+              const valList = vals.map(v => friendlyValue(v, prop)).join(' vs ');
+              leftHtml += '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">' +
+                '<span style="font-weight:600;">' + propName + ':</span> ' +
+                '<span style="color:var(--danger);">' + escapeHtml(valList) + '</span>' +
+                '</div>';
+            }
           });
-
-          html += '</table>';
         }
-
-        html += '</div></div>';
+        leftHtml += '</div></div>';
       });
 
-      // Page details ΓÇö variants summary
-      html += '<div style="margin-top:20px;"><strong style="font-size:13px;">Element Variants Per Page</strong></div>';
-      html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">How many different visual styles exist per element type on each page (0 = all consistent).</div>';
-      html += '<table class="comp-table"><tr><th>Page</th>';
-      const allTypes = [...new Set(comparisons.map(c => c.elementType))];
-      allTypes.forEach(t => { html += '<th>' + t.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase()) + '</th>'; });
-      html += '</tr>';
-
+      leftHtml += '<div style="margin-top:20px;"><strong style="font-size:13px;">Summary by Page</strong></div>';
+      leftHtml += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">How many inconsistencies each page has.</div>';
       pages.forEach(p => {
-        html += '<tr><td>' + escapeHtml(p.url) + '</td>';
-        allTypes.forEach(t => {
-          const variants = (p.elements && p.elements[t]) ? p.elements[t].variants : '-';
-          const count = (p.elements && p.elements[t]) ? p.elements[t].count : 0;
-          html += '<td>' + variants + ' <span style="color:var(--text-secondary)">(' + count + ')</span></td>';
-        });
-        html += '</tr>';
+        const pageIssues = compareState.issues.filter(i => i.url === p.url);
+        if (pageIssues.length > 0) {
+          leftHtml += '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--border);">' +
+            '<span style="font-weight:600;">' + escapeHtml(friendlyPageName(p.url)) + ':</span> ' +
+            '<span style="color:var(--danger);">' + pageIssues.length + ' issue' + (pageIssues.length > 1 ? 's' : '') + '</span>' +
+            '</div>';
+        }
       });
 
-      html += '</table>';
-
-      // Suggestions
       if (data.suggestions && data.suggestions.length > 0) {
-        html += '<div style="margin-top:20px;"><strong style="font-size:13px;">Suggestions</strong></div>';
+        leftHtml += '<div style="margin-top:20px;"><strong style="font-size:13px;">Recommendations</strong></div>';
         data.suggestions.forEach(sug => {
-          const sevColor = sug.severity === 'high' ? 'var(--danger)' : sug.severity === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
-          html += '<div class="comp-card"><div class="comp-card-header"><span>' + sug.type.replace(/-/g, ' ') + '</span><span style="color:' + sevColor + ';font-weight:400;">' + sug.severity + '</span></div><div class="comp-card-body" style="font-size:12px;color:var(--text-primary);">' + escapeHtml(sug.suggestion) + '</div></div>';
+          const sugText = sug.suggestion || sug.type;
+          leftHtml += '<div style="font-size:12px;padding:8px 12px;margin-bottom:8px;background:var(--surface-2);border-radius:8px;border-left:3px solid var(--primary);">' +
+            escapeHtml(sugText) + '</div>';
         });
       }
 
-      compDash.innerHTML = html;
+      // Right side: screenshots scrollable
+      let rightHtml = '';
+      if (compareState.screenshots.length > 0) {
+        rightHtml += '<div style="display:flex;flex-direction:column;gap:12px;">';
+        compareState.screenshots.forEach((ss, i) => {
+          rightHtml += '<div id="cmpPvWrap-' + i + '" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
+          rightHtml += '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text);">' + escapeHtml(ss.url) + '</div>';
+          if (ss.data) {
+            rightHtml += '<div class="preview-frame-wrap" style="height:300px;padding:8px;background:#41808B;">';
+            rightHtml += '<img id="cmpPvImg-' + i + '" src="data:image/png;base64,' + ss.data + '" alt="' + escapeHtml(ss.url) + '" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,0.4);" />';
+            rightHtml += '<div class="pv-highlight" id="cmpPvHighlight-' + i + '"></div>';
+            rightHtml += '</div>';
+          } else {
+            rightHtml += '<div style="padding:40px;text-align:center;color:var(--text-secondary);">Failed</div>';
+          }
+          rightHtml += '</div>';
+        });
+        rightHtml += '</div>';
+      }
+
+      compDash.innerHTML =
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;height:calc(100vh - 200px);overflow:hidden;">' +
+          '<div style="overflow-y:auto;padding-right:8px;">' + leftHtml + '</div>' +
+          '<div style="overflow-y:auto;padding-left:8px;border-left:1px solid var(--border);">' + rightHtml + '</div>' +
+        '</div>';
       compDash.scrollTop = 0;
     }
 
     function renderCompareIssues() {
       const issues = compareState.issues.filter(i => !compareState.fixed.has(i.id));
       if (issues.length === 0) return '';
-      let html = '<div style="margin-bottom:16px;"><strong style="font-size:13px;">Cross-page Issues <span style="color:var(--text-secondary);font-weight:400;">(click to highlight on the page screenshot)</span></strong></div>';
+      let html = '<div style="margin-bottom:16px;"><strong style="font-size:13px;">Issues Found</strong></div>';
       html += '<div class="issue-list">';
       issues.forEach(issue => {
         const isWarned = compareState.warned.has(issue.id);
         const isFailed = compareState.failed.has(issue.id);
+        // Build a friendly explanation
+        const friendly = friendlyIssueText(issue);
         html += '<div class="issue-item severity-' + issue.severity + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (compareState.selected === issue.id ? ' selected' : '') + '" onclick="highlightCompareIssue(\'' + issue.id + '\', event)">';
-        html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
-        html += '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>';
-        html += '<div class="issue-category"><span style="color:var(--primary);font-weight:600;">' + escapeHtml(issue.url) + '</span>' + (issue.property ? '<span>' + escapeHtml(issue.property) + '</span>' : '') + '</div>';
+        html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(friendly.title) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
+        html += '<div class="issue-desc">' + escapeHtml(friendly.desc) + '</div>';
+        if (friendly.suggestion) {
+          html += '<div class="issue-suggestion">' + escapeHtml(friendly.suggestion) + '</div>';
+        }
+        html += '<div class="issue-category"><span style="color:var(--primary);font-weight:600;">' + escapeHtml(issue.url) + '</span></div>';
         html += '<div class="issue-actions">';
         if (isFailed) {
           html += '<button class="btn-fix" onclick="applyCompareFix(\'' + issue.id + '\')">Apply Fix</button>';
@@ -1255,11 +1290,96 @@
         }
         html += '</div>';
         if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
-        if (isFailed && !compareState.fixed.has(issue.id)) html += '<div class="warning-badge">&#9888; Fix not verified - issue still present on the URL</div>';
+        if (isFailed && !compareState.fixed.has(issue.id)) html += '<div class="warning-badge">&#9888; Fix not verified - issue still present</div>';
         html += '</div>';
       });
       html += '</div>';
       return html;
+    }
+
+    function friendlyIssueText(issue) {
+      const propMap = {
+        'font-size': 'text size', 'font-family': 'font', 'font-weight': 'text weight',
+        'color': 'text color', 'background-color': 'background color', 'line-height': 'line spacing',
+        'padding': 'inner spacing', 'padding-top': 'top spacing', 'padding-bottom': 'bottom spacing',
+        'padding-left': 'left spacing', 'padding-right': 'right spacing',
+        'margin': 'outer spacing', 'margin-top': 'top margin', 'margin-bottom': 'bottom margin',
+        'border': 'border', 'border-radius': 'corner roundness',
+        'width': 'width', 'height': 'height', 'min-height': 'minimum height',
+        'text-align': 'text alignment', 'text-transform': 'text style', 'letter-spacing': 'letter spacing',
+        'opacity': 'transparency', 'box-shadow': 'shadow'
+      };
+      const friendly = propMap[issue.property] || issue.property;
+      const element = issue.context || 'Element';
+      const pageName = friendlyPageName(issue.url);
+      const val = friendlyValue(issue.value, issue.property);
+      const dom = friendlyValue(issue.dominant, issue.property);
+
+      const title = element + ' ' + friendly + ' differs across pages';
+
+      const whyMap = {
+        'font-size': 'Different text sizes make the visual hierarchy feel uneven and can confuse users about what is most important.',
+        'font-family': 'Mixing fonts breaks the visual identity of the app and makes it look unpolished.',
+        'font-weight': 'Inconsistent font weights make some text appear heavier or lighter than intended, hurting readability.',
+        'color': 'Using different text colors across pages makes the brand feel inconsistent and can affect readability.',
+        'background-color': 'Different background colors break the visual flow and make the app feel like separate products.',
+        'line-height': 'Varying line heights change how dense or airy text feels, reducing reading comfort.',
+        'padding': 'Uneven padding makes pages feel misaligned and less professional.',
+        'padding-top': 'Inconsistent top padding shifts content up or down unpredictably.',
+        'padding-bottom': 'Inconsistent bottom padding creates uneven breathing room between sections.',
+        'padding-left': 'Different left padding makes content alignment inconsistent across pages.',
+        'padding-right': 'Different right padding makes content alignment inconsistent across pages.',
+        'margin': 'Different margins create uneven gaps between elements, making layouts feel broken.',
+        'margin-top': 'Varying top margins shift elements vertically, breaking alignment.',
+        'margin-bottom': 'Varying bottom margins create inconsistent spacing between sections.',
+        'border': 'Different border styles make similar components look different across pages.',
+        'border-radius': 'Mismatched corner roundness makes components feel like they belong to different design systems.',
+        'width': 'Different widths for the same element type can break responsive layouts.',
+        'height': 'Different heights for the same element type make the layout feel uneven.',
+        'min-height': 'Different minimum heights can cause elements to appear different sizes.',
+        'text-align': 'Mixed text alignment (left vs center) makes the layout feel disorganized.',
+        'text-transform': 'Inconsistent text styling (uppercase vs normal) breaks visual consistency.',
+        'letter-spacing': 'Different letter spacing changes how text feels and affects readability.',
+        'opacity': 'Different transparency levels make elements appear more or less prominent.',
+        'box-shadow': 'Inconsistent shadows change how elements appear to float or sit on the page.'
+      };
+      const why = whyMap[issue.property] || 'This inconsistency makes the app feel less polished and professional.';
+
+      const desc = 'On the ' + pageName + ' page, the ' + element.toLowerCase() + ' ' + friendly + ' is ' + val + ', but on other pages it is ' + dom + '. ' + why;
+
+      let suggestion = 'Change the ' + friendly + ' on ' + pageName + ' to ' + dom + ' so all pages match.';
+      if (issue.property === 'font-size') suggestion = 'Set the ' + element.toLowerCase() + ' font-size to ' + dom + ' on ' + pageName + ' for a consistent text hierarchy.';
+      else if (issue.property === 'color') suggestion = 'Use ' + dom + ' as the text color on ' + pageName + ' to match the rest of the app.';
+      else if (issue.property === 'background-color') suggestion = 'Change the background color on ' + pageName + ' to ' + dom + ' for a unified look.';
+      else if (issue.property === 'font-family') suggestion = 'Use ' + dom + ' as the font on ' + pageName + ' to keep branding consistent.';
+      else if (issue.property === 'padding' || issue.property.startsWith('padding-')) suggestion = 'Set ' + friendly + ' to ' + dom + ' on ' + pageName + ' for uniform spacing.';
+      else if (issue.property === 'border-radius') suggestion = 'Use ' + dom + ' border-radius on ' + pageName + ' so components look the same.';
+
+      return { title, desc, suggestion };
+    }
+
+    function friendlyPageName(url) {
+      try {
+        const u = new URL(url);
+        const path = u.hash && u.hash.length > 1 ? u.hash.replace('#', '') : u.pathname;
+        const name = path.replace(/^\//, '').replace(/\/$/, '') || 'home';
+        return name.charAt(0).toUpperCase() + name.slice(1).replace(/[-_]/g, ' ');
+      } catch (e) { return url; }
+    }
+
+    function friendlyValue(val, prop) {
+      if (!val) return val;
+      if (prop === 'font-size') return 'around ' + val;
+      if (prop === 'font-weight') {
+        const num = parseInt(val);
+        if (num >= 700) return 'bold';
+        if (num >= 500) return 'semi-bold';
+        return 'normal';
+      }
+      if (prop === 'color' || prop === 'background-color') return val;
+      if (prop === 'text-align') return val;
+      if (prop === 'font-family') return val.split(',')[0].trim().replace(/["']/g, '');
+      return val;
     }
 
     function highlightCompareIssue(key, event) {
@@ -1400,9 +1520,19 @@
 
       const ssStatus = document.getElementById('ssStatus');
       const ssBtn = document.getElementById('ssCompareBtn');
+      const ssDash = document.getElementById('ssDashboard');
+
+      // Reset state completely
+      ssCompareState.data = null;
+      ssCompareState.issues = [];
+      ssCompareState.fixed.clear(); ssCompareState.failed.clear(); ssCompareState.warned.clear(); ssCompareState.selected = null;
+
       ssStatus.style.display = 'block';
       ssStatus.textContent = 'Uploading and comparing...';
       ssBtn.disabled = true;
+
+      // Show loading state in dashboard
+      ssDash.innerHTML = '<div class="empty-state"><div class="pv-spinner show" style="position:static;transform:none;margin:0 auto 12px;"></div><h3>Analyzing screenshots...</h3><p>Uploading images and comparing visual differences. Please wait.</p></div>';
 
       const formData = new FormData();
       formData.append('screenshot1', f1);
@@ -1411,15 +1541,31 @@
       try {
         const res = await fetch('/compare-screenshots', { method: 'POST', body: formData });
         const data = await res.json();
-        ssStatus.textContent = 'Comparison complete';
-        setTimeout(() => { ssStatus.style.display = 'none'; }, 3000);
         ssCompareState.data = data;
         ssCompareState.issues = (data.issues || []).map(i => ({ ...i })).filter(i => !isIssueDismissed(SCREENSHOT_KEY, i));
         ssCompareState.fixed.clear(); ssCompareState.failed.clear(); ssCompareState.warned.clear(); ssCompareState.selected = null;
         ssCompareState.file1Name = f1.name;
         ssCompareState.file2Name = f2.name;
+
+        // Render the HTML first (images are in base64 src)
         renderScreenshotComparison(data);
+
+        // Wait for both images to fully load before showing results
+        const img1 = document.getElementById('ssPvImg');
+        const img2 = document.getElementById('ssPv2Img');
+        const imagesLoaded = Promise.all([
+          img1 ? new Promise(r => { if (img1.complete && img1.naturalWidth > 0) r(); else { img1.onload = r; img1.onerror = r; } }) : Promise.resolve(),
+          img2 ? new Promise(r => { if (img2.complete && img2.naturalWidth > 0) r(); else { img2.onload = r; img2.onerror = r; } }) : Promise.resolve()
+        ]);
+
+        // Also wait up to 10s max
+        const timeout = new Promise(r => setTimeout(r, 10000));
+        await Promise.race([imagesLoaded, timeout]);
+
+        ssStatus.textContent = 'Comparison complete';
+        setTimeout(() => { ssStatus.style.display = 'none'; }, 3000);
       } catch (err) {
+        ssDash.innerHTML = '<div class="empty-state"><h3>Error</h3><p>' + escapeHtml(err.message) + '</p></div>';
         ssStatus.textContent = 'Error: ' + err.message;
       } finally {
         ssBtn.disabled = false;
@@ -1481,68 +1627,74 @@
       const ssDash = document.getElementById('ssDashboard');
       document.getElementById('ssSummary').textContent = data.dimensions1 + ' vs ' + data.dimensions2;
 
-      let html = '';
+      // LEFT: issues
+      let leftHtml = '';
 
-      // Side by side images (both interactive for highlighting)
-      html += '<div class="comp-screenshot-grid">';
-      html += '<div class="comp-screenshot-item" id="ssPvWrap">' +
-        '<img id="ssPvImg" src="data:image/png;base64,' + data.img1 + '" alt="Screenshot 1" />' +
-        '<div class="pv-highlight" id="ssPvHighlight"></div>' +
-        '<div class="label">Screenshot 1 (' + data.dimensions1 + ') - click issues to highlight</div></div>';
-      html += '<div class="comp-screenshot-item" id="ssPv2Wrap">' +
-        '<img id="ssPv2Img" src="data:image/png;base64,' + data.img2 + '" alt="Screenshot 2" />' +
-        '<div class="pv-highlight" id="ssPv2Highlight"></div>' +
-        '<div class="label">Screenshot 2 (' + data.dimensions2 + ') - click issues to highlight</div></div>';
-      html += '</div>';
-
-      // Diff issues (click to highlight on screenshot 1)
       if (ssCompareState.issues.length > 0) {
-        html += '<div style="margin-top:16px;"><strong style="font-size:13px;">Visual Differences <span style="color:var(--text-secondary);font-weight:400;">(click to highlight on the screenshot)</span></strong></div>';
-        html += '<div class="issue-list">';
+        leftHtml += '<div class="issue-list">';
         ssCompareState.issues.forEach(issue => {
           const isWarned = ssCompareState.warned.has(issue.id);
           const isFailed = ssCompareState.failed.has(issue.id);
           const bbox = issue.bbox;
-          const loc = (bbox && bbox.x !== undefined) ? 'at (' + bbox.x + ', ' + bbox.y + ') - ' + bbox.width + 'x' + bbox.height + 'px' : '';
-          html += '<div class="issue-item severity-' + issue.severity + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (ssCompareState.selected === issue.id ? ' selected' : '') + '" onclick="highlightScreenshotIssue(\'' + issue.id + '\', event)">';
-          html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
-          html += '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>';
-          if (issue.explanation) {
-            html += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
-          } else if (issue.recommendation) {
-            html += '<div class="issue-suggestion">' + escapeHtml(issue.recommendation) + '</div>';
+          const friendly = friendlyScreenshotIssue(issue);
+          leftHtml += '<div class="issue-item severity-' + issue.severity + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (ssCompareState.selected === issue.id ? ' selected' : '') + '" onclick="highlightScreenshotIssue(\'' + issue.id + '\', event)">';
+          leftHtml += '<div class="issue-header"><span class="issue-title">' + escapeHtml(friendly.title) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
+          leftHtml += '<div class="issue-desc">' + friendly.desc + '</div>';
+          if (friendly.suggestion) {
+            leftHtml += '<div class="issue-suggestion">' + escapeHtml(friendly.suggestion) + '</div>';
           }
-          html += '<div class="issue-category">' +
-            (loc ? '<span style="color:var(--primary);font-weight:600;">' + escapeHtml(loc) + '</span>' : '') +
-            '<span>' + (issue.category || 'visual-diff') + '</span></div>';
-          html += '<div class="issue-actions">';
-          html += '<button class="btn-fix" onclick="applyScreenshotFix(\'' + issue.id + '\')">Apply Fix</button>';
-          html += '<button class="btn-ignore" onclick="ignoreScreenshotIssue(\'' + issue.id + '\')">Ignore Issue</button>';
-          if (isFailed) html += '<button class="btn-recheck" onclick="recheckScreenshotIssue(\'' + issue.id + '\')">Re-check</button>';
-          html += '</div>';
-          if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
-          if (isFailed) html += '<div class="warning-badge">&#9888; Fix not verified - issue still present</div>';
-          html += '</div>';
+          leftHtml += '<div class="issue-actions">';
+          leftHtml += '<button class="btn-fix" onclick="applyScreenshotFix(\'' + issue.id + '\')">Apply Fix</button>';
+          leftHtml += '<button class="btn-ignore" onclick="ignoreScreenshotIssue(\'' + issue.id + '\')">Ignore Issue</button>';
+          if (isFailed) leftHtml += '<button class="btn-recheck" onclick="recheckScreenshotIssue(\'' + issue.id + '\')">Re-check</button>';
+          leftHtml += '</div>';
+          if (isWarned) leftHtml += '<div class="warning-badge">&#9888; Still present after re-check</div>';
+          if (isFailed) leftHtml += '<div class="warning-badge">&#9888; Fix not verified</div>';
+          leftHtml += '</div>';
         });
-        html += '</div>';
-      }
-
-      // Comparison info
-      html += '<div style="margin-top:16px;"><strong style="font-size:13px;">Comparison</strong></div>';
-      if (data.dimensionsMatch) {
-        html += '<div style="color:var(--success);font-size:13px;padding:8px 0;">Screenshots have matching dimensions.</div>';
-        if (ssCompareState.issues.length === 0) {
-          html += '<div class="empty-state"><h3>No visual differences</h3><p>The two screenshots look identical in the checked regions.</p></div>';
-        }
+        leftHtml += '</div>';
       } else {
-        html += '<div style="color:var(--warning);font-size:13px;padding:8px 0;">Screenshots have different sizes (' + data.dimensions1 + ' vs ' + data.dimensions2 + '). Compared the overlapping region' + (data.comparedRegion ? ' (' + data.comparedRegion.width + 'x' + data.comparedRegion.height + 'px)' : '') + ' - take screenshots at the same size for a complete comparison.</div>';
-        if (ssCompareState.issues.length === 0) {
-          html += '<div class="empty-state"><h3>No visual differences</h3><p>No differences found in the overlapping region.</p></div>';
-        }
+        leftHtml += '<div class="empty-state" style="padding:40px 20px;"><h3 style="color:var(--success);">No differences found</h3><p>The two screenshots look identical.</p></div>';
       }
 
-      ssDash.innerHTML = html;
+      // RIGHT: screenshots only, no extra messages
+      let rightHtml = '<div style="display:flex;flex-direction:column;gap:12px;">';
+      rightHtml += '<div id="ssPvWrap" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
+      rightHtml += '<div class="preview-frame-wrap" style="height:400px;padding:8px;background:#41808B;">';
+      rightHtml += '<img id="ssPvImg" src="data:image/png;base64,' + data.img1 + '" alt="Screenshot 1" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;" />';
+      rightHtml += '<div class="pv-highlight" id="ssPvHighlight"></div>';
+      rightHtml += '</div></div>';
+
+      rightHtml += '<div id="ssPv2Wrap" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
+      rightHtml += '<div class="preview-frame-wrap" style="height:400px;padding:8px;background:#41808B;">';
+      rightHtml += '<img id="ssPv2Img" src="data:image/png;base64,' + data.img2 + '" alt="Screenshot 2" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;" />';
+      rightHtml += '<div class="pv-highlight" id="ssPv2Highlight"></div>';
+      rightHtml += '</div></div>';
+      rightHtml += '</div>';
+
+      ssDash.innerHTML =
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;height:calc(100vh - 200px);overflow:hidden;">' +
+          '<div style="overflow-y:auto;padding-right:8px;">' + leftHtml + '</div>' +
+          '<div style="overflow-y:auto;padding-left:8px;border-left:1px solid var(--border);">' + rightHtml + '</div>' +
+        '</div>';
       ssDash.scrollTop = 0;
+    }
+
+    function friendlyScreenshotIssue(issue) {
+      const name = issue.name || '';
+      const detail = issue.detail || '';
+      const recommendation = issue.recommendation || '';
+      const explanation = issue.explanation || '';
+      // The server provides comprehensive human-readable name/detail now
+      let title = name.replace(/_/g, ' ');
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+      // Use the explanation as the primary description (more comprehensive),
+      // fall back to detail if explanation is missing
+      let desc = explanation || detail;
+      // Convert newlines in desc to <br> for HTML display
+      desc = desc.replace(/\n/g, '<br>');
+      let sug = recommendation;
+      return { title, desc, suggestion: sug };
     }
 
     function highlightScreenshotIssue(key, event) {
@@ -1737,7 +1889,6 @@
     function renderScanAllResults() {
       const dash = $('scanAllResults');
       const pages = scanAllState.pages;
-      let html = '';
 
       if (pages.length === 0) {
         dash.innerHTML = '<div class="empty-state"><h3>No pages to show</h3><p>Try scanning again.</p></div>';
@@ -1752,22 +1903,24 @@
       const totalMed = pages.reduce((s, p) => s + (p.issues ? p.issues.filter(i => i.severity === 'medium').length : 0), 0);
       const totalLow = pages.reduce((s, p) => s + (p.issues ? p.issues.filter(i => i.severity === 'low').length : 0), 0);
 
-      html += '<div class="stats-row" style="margin-bottom:20px;">';
-      html += '<div class="stat-card total"><div class="num">' + totalPages + '</div><div class="label">Pages Scanned</div></div>';
-      html += '<div class="stat-card open"><div class="num">' + totalIssues + '</div><div class="label">Total Issues</div></div>';
-      html += '<div class="stat-card warning"><div class="num">' + pagesWithIssues + '</div><div class="label">Pages with Issues</div></div>';
-      html += '<div class="stat-card fixed"><div class="num">' + pagesClean + '</div><div class="label">Clean Pages</div></div>';
-      html += '</div>';
+      let leftHtml = '';
 
-      html += '<div class="stats-row" style="margin-bottom:20px;">';
-      html += '<div class="stat-card open"><div class="num">' + totalHigh + '</div><div class="label">High Issues</div></div>';
-      html += '<div class="stat-card warning"><div class="num">' + totalMed + '</div><div class="label">Medium Issues</div></div>';
-      html += '<div class="stat-card fixed"><div class="num">' + totalLow + '</div><div class="label">Low Issues</div></div>';
-      html += '</div>';
+      leftHtml += '<div class="stats-row" style="margin-bottom:20px;">';
+      leftHtml += '<div class="stat-card total"><div class="num">' + totalPages + '</div><div class="label">Pages Scanned</div></div>';
+      leftHtml += '<div class="stat-card open"><div class="num">' + totalIssues + '</div><div class="label">Total Issues</div></div>';
+      leftHtml += '<div class="stat-card warning"><div class="num">' + pagesWithIssues + '</div><div class="label">Pages with Issues</div></div>';
+      leftHtml += '<div class="stat-card fixed"><div class="num">' + pagesClean + '</div><div class="label">Clean Pages</div></div>';
+      leftHtml += '</div>';
 
-      html += renderCrossPageComparisons();
+      leftHtml += '<div class="stats-row" style="margin-bottom:20px;">';
+      leftHtml += '<div class="stat-card open"><div class="num">' + totalHigh + '</div><div class="label">High Issues</div></div>';
+      leftHtml += '<div class="stat-card warning"><div class="num">' + totalMed + '</div><div class="label">Medium Issues</div></div>';
+      leftHtml += '<div class="stat-card fixed"><div class="num">' + totalLow + '</div><div class="label">Low Issues</div></div>';
+      leftHtml += '</div>';
 
-      // Each page with its screenshot + issues underneath
+      leftHtml += renderCrossPageComparisons();
+
+      // Each page: issues only (no screenshot here)
       pages.forEach((page, idx) => {
         const issueCount = page.issues ? page.issues.length : 0;
         const sevHigh = page.issues ? page.issues.filter(i => i.severity === 'high').length : 0;
@@ -1776,49 +1929,69 @@
         const pageLabel = getPageLabel(page.url);
         const borderColor = issueCount === 0 ? 'var(--success)' : sevHigh > 0 ? 'var(--danger)' : 'var(--warning)';
 
-        html += '<div class="comp-card" style="margin-bottom:16px;border-left:4px solid ' + borderColor + ';">';
-        html += '<div class="comp-card-header" style="flex-direction:column;align-items:flex-start;gap:4px;">';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">';
-        html += '<span style="font-size:14px;font-weight:700;">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
+        leftHtml += '<div class="comp-card" style="margin-bottom:16px;border-left:4px solid ' + borderColor + ';">';
+        leftHtml += '<div class="comp-card-header" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+        leftHtml += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">';
+        leftHtml += '<span style="font-size:14px;font-weight:700;">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
         if (issueCount === 0) {
-          html += '<span style="color:var(--success);font-size:12px;font-weight:600;">&#10003; Clean</span>';
+          leftHtml += '<span style="color:var(--success);font-size:12px;font-weight:600;">&#10003; Clean</span>';
         } else {
-          html += '<span style="color:' + borderColor + ';font-size:12px;font-weight:600;">' + issueCount + ' issues</span>';
+          leftHtml += '<span style="color:' + borderColor + ';font-size:12px;font-weight:600;">' + issueCount + ' issues</span>';
         }
-        html += '</div>';
-        html += '<div style="font-size:11px;color:var(--text-secondary);word-break:break-all;font-family:monospace;">' + escapeHtml(page.url) + '</div>';
-        html += '</div>';
+        leftHtml += '</div>';
+        leftHtml += '<div style="font-size:11px;color:var(--text-secondary);word-break:break-all;font-family:monospace;">' + escapeHtml(page.url) + '</div>';
+        leftHtml += '</div>';
 
-        html += '<div class="comp-card-body">';
-
-        if (page.screenshot) {
-          html += '<div class="preview-frame-wrap" id="pvWrap-' + idx + '" style="height:340px;margin-bottom:12px;">';
-          html += '<img class="pv-img show" id="pvImg-' + idx + '" src="data:image/png;base64,' + page.screenshot + '" alt="' + escapeHtml(page.url) + '" />';
-          html += '<div class="pv-highlight" id="pvHighlight-' + idx + '"></div>';
-          html += '</div>';
-        }
+        leftHtml += '<div class="comp-card-body">';
 
         if (page.error) {
-          html += '<div style="color:var(--danger);font-size:13px;padding:8px;background:var(--danger-bg);border-radius:6px;">Error: ' + escapeHtml(page.error) + '</div>';
+          leftHtml += '<div style="color:var(--danger);font-size:13px;padding:8px;background:var(--danger-bg);border-radius:6px;">Error: ' + escapeHtml(page.error) + '</div>';
         } else if (issueCount === 0) {
-          html += '<div style="color:var(--success);font-size:13px;padding:8px;background:var(--success-bg);border-radius:6px;">&#10003; No issues found on this page</div>';
+          leftHtml += '<div style="color:var(--success);font-size:13px;padding:8px;background:var(--success-bg);border-radius:6px;">&#10003; No issues found on this page</div>';
         } else {
-          html += '<div style="display:flex;gap:12px;margin-bottom:10px;">';
-          if (sevHigh > 0) html += '<span style="background:var(--danger-bg);color:var(--danger);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">High: ' + sevHigh + '</span>';
-          if (sevMed > 0) html += '<span style="background:var(--warning-bg);color:var(--warning);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Medium: ' + sevMed + '</span>';
-          if (sevLow > 0) html += '<span style="background:var(--success-bg);color:var(--success);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Low: ' + sevLow + '</span>';
-          html += '</div>';
+          leftHtml += '<div style="display:flex;gap:12px;margin-bottom:10px;">';
+          if (sevHigh > 0) leftHtml += '<span style="background:var(--danger-bg);color:var(--danger);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">High: ' + sevHigh + '</span>';
+          if (sevMed > 0) leftHtml += '<span style="background:var(--warning-bg);color:var(--warning);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Medium: ' + sevMed + '</span>';
+          if (sevLow > 0) leftHtml += '<span style="background:var(--success-bg);color:var(--success);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Low: ' + sevLow + '</span>';
+          leftHtml += '</div>';
 
-          html += '<div class="issue-list">';
+          leftHtml += '<div class="issue-list">';
           page.issues.forEach(issue => {
-            html += renderScanAllIssue(issue, idx);
+            leftHtml += renderScanAllIssue(issue, idx);
           });
-          html += '</div>';
+          leftHtml += '</div>';
         }
-        html += '</div></div>';
+        leftHtml += '</div></div>';
       });
 
-      dash.innerHTML = html;
+      // Right side: all screenshots in scrollable panel
+      let rightHtml = '<div style="display:flex;flex-direction:column;gap:12px;">';
+      pages.forEach((page, idx) => {
+        const pageLabel = getPageLabel(page.url);
+        const issueCount = page.issues ? page.issues.length : 0;
+        rightHtml += '<div id="ssCard-' + idx + '" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
+        rightHtml += '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">';
+        rightHtml += '<span style="color:var(--text);">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
+        if (issueCount > 0) rightHtml += '<span style="color:var(--danger);font-size:11px;">' + issueCount + ' issues</span>';
+        else rightHtml += '<span style="color:var(--success);font-size:11px;">Clean</span>';
+        rightHtml += '</div>';
+        if (page.screenshot) {
+          rightHtml += '<div class="preview-frame-wrap" id="pvWrap-' + idx + '" style="height:280px;padding:8px;background:#41808B;">';
+          rightHtml += '<img class="pv-img show" id="pvImg-' + idx + '" src="data:image/png;base64,' + page.screenshot + '" alt="' + escapeHtml(page.url) + '" />';
+          rightHtml += '<div class="pv-highlight" id="pvHighlight-' + idx + '"></div>';
+          rightHtml += '</div>';
+        } else {
+          rightHtml += '<div style="padding:40px;text-align:center;color:var(--text-secondary);font-size:12px;">No screenshot</div>';
+        }
+        rightHtml += '</div>';
+      });
+      rightHtml += '</div>';
+
+      dash.innerHTML =
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;height:calc(100vh - 160px);overflow:hidden;">' +
+          '<div style="overflow-y:auto;padding-right:8px;">' + leftHtml + '</div>' +
+          '<div style="overflow-y:auto;padding-left:8px;border-left:1px solid var(--border);">' + rightHtml + '</div>' +
+        '</div>';
       dash.scrollTop = 0;
     }
 

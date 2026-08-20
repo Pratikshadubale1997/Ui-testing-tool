@@ -32,6 +32,7 @@ async function getBrowser() {
 
 // ─── HELPER: Navigate to SPA page reliably ────────────────────────────
 async function navigateToPage(page, url, timeout = 30000, credentials = null) {
+  const startUrl = url;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
 
   // Wait for SPA redirects/auth checks to settle (up to 15s)
@@ -43,22 +44,94 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
     lastUrl = curUrl;
   }
 
-  // If the page is a login page and credentials provided, attempt login
-  if (credentials && (await isLoginPage(page))) {
-    console.log(`  [INFO] On login page, attempting login...`);
-    try {
-      const loggedIn = await attemptLogin(page, credentials);
-      if (loggedIn) console.log(`  [INFO] Login successful. Current URL: ${page.url()}`);
-      else console.log(`  [WARN] Login may have failed - page still looks like a login page`);
-    } catch (e) {
-      console.log(`  [WARN] Login attempt failed: ${e.message}`);
-    }
-  }
-
-  // Try to wait for network to settle (non-fatal if it fails)
+  // Wait for network to settle
   try {
     await page.waitForNetworkIdle({ idleTime: 500, timeout: 10000 });
   } catch (e) {}
+
+  // Generic SPA content wait: many Vue/React/Angular SPAs render content
+  // AFTER network idle, via JavaScript. Wait for actual DOM content to appear.
+  try {
+    await page.waitForFunction(() => {
+      const text = (document.body?.innerText || '').trim();
+      // Page has meaningful content if body text > 50 chars or has rendered elements
+      return text.length > 50 ||
+             document.querySelectorAll('h1, h2, h3, h4, a, button, nav, main, section, article, [class*="card"], [class*="app"]').length > 5;
+    }, { timeout: 15000 });
+  } catch (e) {
+    console.log(`  [WARN] SPA content did not render within 15s, proceeding anyway`);
+  }
+
+  // Extra wait for SPAs that lazy-load after initial render
+  await page.waitForTimeout(2000);
+
+  // If the page still looks blank, try waiting longer (some SPAs are slow)
+  const bodyText = await page.evaluate(() => (document.body?.innerText || '').trim());
+  if (bodyText.length < 30) {
+    console.log(`  [INFO] Page body has minimal content (${bodyText.length} chars), waiting extra 5s...`);
+    await page.waitForTimeout(5000);
+  }
+
+  let loginAttempted = false;
+  let loginSucceeded = false;
+
+  // Wait for SPA to render (some SPAs render login form on root URL, not /login)
+  if (credentials) {
+    try {
+      await page.waitForFunction(() => {
+        return document.querySelector('input[type="password"]') !== null ||
+               document.querySelectorAll('h1, h2, h3, a, button, table').length > 5;
+      }, { timeout: 15000 });
+    } catch (e) {}
+    await page.waitForTimeout(2000);
+  }
+
+  // If credentials provided, always try to find and fill login form
+  if (credentials) {
+    const hasPasswordField = await hasVisiblePasswordField(page);
+    if (hasPasswordField) {
+      loginAttempted = true;
+      console.log(`  [INFO] Password field found, attempting login...`);
+      const urlBeforeLogin = page.url();
+      try {
+        const loggedIn = await attemptLogin(page, credentials);
+        if (loggedIn) console.log(`  [INFO] Login successful. Current URL: ${page.url()}`);
+        else console.log(`  [WARN] Login form filled but may not have succeeded`);
+
+        // Wait for SPA to redirect after login (up to 15s)
+        if (loggedIn) {
+          const loginUrl = page.url();
+          for (let i = 0; i < 15; i++) {
+            await page.waitForTimeout(1000);
+            if (page.url() !== loginUrl) {
+              console.log(`  [INFO] Redirected to: ${page.url()}`);
+              break;
+            }
+          }
+          // Wait for content to render after redirect
+          try {
+            await page.waitForFunction(() => {
+              const text = document.body?.innerText || '';
+              return text.length > 50 || document.querySelectorAll('h1, h2, a, button, table').length > 5;
+            }, { timeout: 15000 });
+          } catch (e) {}
+          await page.waitForTimeout(2000);
+        }
+
+        // Check if login succeeded
+        const urlChanged = page.url() !== urlBeforeLogin;
+        const noLoginForm = !(await hasVisiblePasswordField(page));
+        loginSucceeded = urlChanged || noLoginForm;
+        console.log(`  [INFO] Login check: urlChanged=${urlChanged}, noLoginForm=${noLoginForm}`);
+      } catch (e) {
+        console.log(`  [WARN] Login attempt failed: ${e.message}`);
+      }
+    } else {
+      console.log(`  [INFO] No password field found, page may not need login`);
+    }
+  }
+
+  return { loginAttempted, loginSucceeded };
 
   // Wait for actual page content to render (for SPAs that lazy-load)
   if (!page.url().includes('/login')) {
@@ -74,15 +147,85 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
 }
 
 // Detects whether the current page is a login/authentication page.
+// Uses multiple heuristics: URL path, nearby heading text, and form structure.
 async function isLoginPage(page) {
-  if (!(await hasVisiblePasswordField(page))) return false;
-  return page.evaluate(() => {
-    const url = (location.href || '').toLowerCase();
-    const urlHint = /(login|log-in|signin|sign-in|auth)/.test(url);
-    const text = (document.body && document.body.innerText || '').toLowerCase();
-    const textHint = /\bsign in\b|\blog in\b|\blogin\b/.test(text);
-    return urlHint || textHint;
+  const result = await page.evaluate(() => {
+    const isVisible = (el) => {
+      if (!el || !el.isConnected) return false;
+      const r = el.getBoundingClientRect();
+      const s = window.getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+    };
+
+    // 0) Detect known external OAuth / identity providers that we cannot handle
+    const hostname = (location.hostname || '').toLowerCase();
+    const href = (location.href || '').toLowerCase();
+    const externalAuthHosts = [
+      'accounts.google.com', 'login.microsoftonline.com', 'login.yahoo.com',
+      'github.com/login', 'gitlab.com/users/sign_in', 'id.apple.com',
+      'facebook.com/login', 'twitter.com/login', 'x.com/login',
+      'linkedin.com/login', 'auth0.com', 'okta.com', 'onelogin.com',
+      'cognito-idp', 'keycloak', 'identityprovider'
+    ];
+    for (const h of externalAuthHosts) {
+      if (hostname.includes(h) || href.includes(h)) {
+        return { match: true, reason: 'External OAuth provider detected: ' + hostname + ' (' + h + ')' };
+      }
+    }
+
+    const pw = Array.from(document.querySelectorAll('input[type="password"]')).find(isVisible);
+    if (!pw) return { match: false, reason: 'no visible password field' };
+
+    // 1) URL pathname strongly suggests login
+    const urlPath = (location.pathname || '').toLowerCase();
+    if (/(\/login|\/log-in|\/signin|\/sign-in|\/auth)/.test(urlPath)) {
+      return { match: true, reason: 'URL path contains login keyword: ' + urlPath };
+    }
+
+    // 2) Check the nearest form-like container
+    const form = pw.closest('form') || pw.closest('[role="form"]') || pw.parentElement?.parentElement;
+    if (!form) return { match: false, reason: 'password field has no parent container' };
+
+    // Count visible inputs in this form — login forms are small (1-3 fields)
+    const formInputs = Array.from(form.querySelectorAll('input, textarea, select')).filter(isVisible);
+    const nonHidden = formInputs.filter(el => el.type !== 'hidden' && el.type !== 'submit');
+    const formText = (form.innerText || '').toLowerCase();
+
+    // 3) Form text explicitly says sign in / log in
+    if (/\b(sign\s*in|log\s*in|login|authenticate|welcome\s*back|enter\s*your)\b/.test(formText)) {
+      return { match: true, reason: 'form contains login text' };
+    }
+
+    // 4) Form has a submit button with login text
+    const btns = Array.from(form.querySelectorAll('button, input[type="submit"], [role="button"]')).filter(isVisible);
+    const loginBtnTexts = ['log in', 'login', 'sign in', 'signin', 'let me in', 'sign on', 'logon'];
+    for (const b of btns) {
+      const t = ((b.textContent || b.value || '') + '').toLowerCase().trim();
+      if (loginBtnTexts.some(h => t === h || t.includes(h))) {
+        return { match: true, reason: 'form has login button: "' + t + '"' };
+      }
+    }
+
+    // 5) Small form (≤3 inputs) with password field and a submit-like button — likely login
+    if (nonHidden.length <= 3 && btns.length > 0) {
+      // Extra check: no textarea/select (search forms may have these)
+      if (form.querySelectorAll('textarea, select').length === 0) {
+        // Check if heading nearby says something auth-related
+        const heading = form.querySelector('h1, h2, h3, h4, h5, h6, legend, [class*="title"], [class*="heading"]');
+        const headingText = heading ? (heading.textContent || '').toLowerCase() : '';
+        if (/\b(sign|log|in|auth|welcome|password|account|access)\b/.test(headingText)) {
+          return { match: true, reason: 'small form with auth-related heading: "' + headingText.trim() + '"' };
+        }
+        // Even without heading, small form with password + button in a SPA is likely login
+        return { match: true, reason: 'small form (' + nonHidden.length + ' fields) with password + button — likely login' };
+      }
+    }
+
+    return { match: false, reason: 'password field found but no login indicators (inputs=' + nonHidden.length + ', btns=' + btns.length + ')' };
   });
+
+  console.log(`  [isLoginPage] URL: ${page.url().split('?')[0]} → ${result.match ? 'LOGIN' : 'NOT login'} (${result.reason})`);
+  return result.match;
 }
 
 // Whether a visible password field is currently present (i.e. a login form is shown).
@@ -179,12 +322,20 @@ async function attemptLogin(page, credentials) {
   let loggedIn = false;
   for (let i = 0; i < 20; i++) {
     await page.waitForTimeout(1000);
-    if (!(await hasVisiblePasswordField(page))) { loggedIn = true; break; }
-    // SPA logins often change the URL; short-circuit if we left the login page
-    const url = page.url().toLowerCase();
-    if (!/(login|log-in|signin|sign-in)/.test(url)) {
-      await page.waitForTimeout(1000);
+    try {
       if (!(await hasVisiblePasswordField(page))) { loggedIn = true; break; }
+      // SPA logins often change the URL; short-circuit if we left the login page
+      const url = page.url().toLowerCase();
+      if (!/(login|log-in|signin|sign-in)/.test(url)) {
+        await page.waitForTimeout(1000);
+        if (!(await hasVisiblePasswordField(page))) { loggedIn = true; break; }
+      }
+    } catch (e) {
+      // Page might be navigating (context destroyed) - wait for it to settle
+      try { await page.waitForTimeout(3000); } catch (e2) {}
+      try {
+        if (!(await hasVisiblePasswordField(page))) { loggedIn = true; break; }
+      } catch (e3) { continue; }
     }
   }
 
@@ -697,16 +848,37 @@ app.post('/analyze', async (req, res) => {
     await page.setViewport({ width: 1280, height: 800 });
     await page.setDefaultNavigationTimeout(60000);
 
-    await navigateToPage(page, url, 30000, credentials);
+    const navResult = await navigateToPage(page, url, 30000, credentials);
 
-    // If the page requires login, ask for credentials before showing any issues.
-    if (await isLoginPage(page)) {
+    // If login was attempted but failed AND page still looks like a login page, ask for credentials.
+    // If login succeeded (URL changed away from login), skip this check — the SPA may still
+    // have password fields or "login" text elsewhere in the DOM (settings, nav, etc.)
+    if (navResult.loginAttempted && !navResult.loginSucceeded && await isLoginPage(page)) {
       await page.close();
       if (credentials) {
         return res.json({
           url,
           loginRequired: true,
           message: 'Login failed with the provided credentials. Please check the username and password and try again.',
+        });
+      }
+      return res.json({
+        url,
+        loginRequired: true,
+        message: 'This page requires a username and password. Please enter your login credentials above and click Analyze again.',
+      });
+    }
+
+    // Also check if no credentials were provided and page needs login
+    if (!credentials && await isLoginPage(page)) {
+      const currentUrl = page.url().toLowerCase();
+      const isExternalAuth = /accounts\.google\.com|login\.microsoftonline|facebook\.com\/login|github\.com\/login|linkedin\.com\/login|twitter\.com\/login|x\.com\/login|id\.apple\.com|auth0\.com|okta\.com|onelogin\.com/.test(currentUrl);
+      await page.close();
+      if (isExternalAuth) {
+        return res.json({
+          url,
+          loginRequired: true,
+          message: 'This page redirects to an external login provider (' + new URL(currentUrl).hostname + ') that cannot be automated. Please log into the site manually in your browser first, then try again.',
         });
       }
       return res.json({
@@ -1131,13 +1303,30 @@ app.post('/compare', async (req, res) => {
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
       try {
-        await navigateToPage(page, url, 30000, credentials);
-        if (await isLoginPage(page)) {
+        const navResult = await navigateToPage(page, url, 30000, credentials);
+        // If login failed and page still looks like a login page
+        if (navResult.loginAttempted && !navResult.loginSucceeded && await isLoginPage(page)) {
           await page.close().catch(() => {});
           if (credentials) {
             return res.json({
               loginRequired: true,
               message: 'Login failed with the provided credentials. Please check the username and password and try again.',
+            });
+          }
+          return res.json({
+            loginRequired: true,
+            message: 'These pages require a username and password. Please enter your login credentials above and click Compare again.',
+          });
+        }
+        // Also check if no credentials and page needs login
+        if (!credentials && await isLoginPage(page)) {
+          const curUrl = page.url().toLowerCase();
+          const isExtAuth = /accounts\.google\.com|login\.microsoftonline|facebook\.com\/login|github\.com\/login|linkedin\.com\/login|twitter\.com\/login|x\.com\/login|id\.apple\.com|auth0\.com|okta\.com|onelogin\.com/.test(curUrl);
+          await page.close().catch(() => {});
+          if (isExtAuth) {
+            return res.json({
+              loginRequired: true,
+              message: 'This page redirects to an external login provider (' + new URL(curUrl).hostname + ') that cannot be automated. Please log into the site manually in your browser first, then try again.',
             });
           }
           return res.json({
@@ -1208,7 +1397,7 @@ app.post('/compare', async (req, res) => {
         const ssPage = await browser.newPage();
         await ssPage.setViewport({ width: 1280, height: 800 });
         await ssPage.setDefaultNavigationTimeout(60000);
-        await navigateToPage(ssPage, pd.url);
+        await navigateToPage(ssPage, pd.url, 30000, credentials);
         const ss = await ssPage.screenshot({ type: 'png', fullPage: true });
         screenshots.push({ url: pd.url, data: ss.toString('base64') });
         await ssPage.close().catch(() => {});
@@ -1556,61 +1745,157 @@ app.post('/compare-screenshots', upload.fields([
     function toHex(r, g, b) {
       return '#' + [r, g, b].map(v => Math.min(255, Math.max(0, Math.round(v))).toString(16).padStart(2, '0')).join('');
     }
+
+    // Classify a diff region into a kind + human-readable description
+    function classifyRegion(r) {
+      const dR = Math.abs((r.avg1 && r.avg1[0]) - (r.avg2 && r.avg2[0]));
+      const dG = Math.abs((r.avg1 && r.avg1[1]) - (r.avg2 && r.avg2[1]));
+      const dB = Math.abs((r.avg1 && r.avg1[2]) - (r.avg2 && r.avg2[2]));
+      const colorDelta = dR + dG + dB;
+      const isBackground = r.changeRatio > 0.6;
+      let kind, label, description, recommendation;
+      const hex1 = (r.avg1 && r.avg2) ? toHex(r.avg1[0], r.avg1[1], r.avg1[2]) : '';
+      const hex2 = (r.avg1 && r.avg2) ? toHex(r.avg2[0], r.avg2[1], r.avg2[2]) : '';
+      const colorInfo = hex1 && hex2 ? ' (Screenshot 1: ' + hex1 + ', Screenshot 2: ' + hex2 + ')' : '';
+      const sizeInfo = r.width + 'x' + r.height + 'px region at position (' + r.x + ', ' + r.y + ')';
+
+      if (colorDelta > 150 && isBackground) {
+        kind = 'background-colour';
+        label = 'Background Colour Mismatch';
+        description = 'The background colour of a ' + sizeInfo + ' is different between the two screenshots' + colorInfo + '. ' +
+          'This creates a visual inconsistency that makes the pages feel like they belong to different designs. ' +
+          'Both pages should share the same background colour to maintain a unified brand appearance.';
+        recommendation = 'Match the background colour across both pages. Use the dominant background colour (' + hex1 + ') on both pages, ' +
+          'or update the CSS variable / background property to a single consistent value.';
+      } else if (colorDelta > 150) {
+        kind = 'text-colour';
+        label = 'Text / Element Colour Mismatch';
+        description = 'The text or element colour of a ' + sizeInfo + ' differs between the two screenshots' + colorInfo + '. ' +
+          'When similar text or UI elements use different colours on different pages, the design feels disjointed and unprofessional. ' +
+          'Standardise the colour to keep the visual language consistent.';
+        recommendation = 'Use the same text/element colour on both pages. Check your CSS variables (e.g., --primary, --text) ' +
+          'and ensure they resolve to the same value on every page.';
+      } else if (isBackground) {
+        kind = 'background-layout';
+        label = 'Background Layout / Spacing Inconsistency';
+        description = 'The background layout or spacing of a ' + sizeInfo + ' differs between the two screenshots. ' +
+          'This could be caused by different padding, margins, or section spacing. ' +
+          'Inconsistent spacing disrupts the visual rhythm and makes the app feel unpolished.';
+        recommendation = 'Align padding, margins, and section spacing between both pages. ' +
+          'Use a consistent spacing scale (e.g., 8px, 16px, 24px, 32px) for all sections.';
+      } else {
+        kind = 'content';
+        label = 'Content / Layout Inconsistency';
+        description = 'The content or layout of a ' + sizeInfo + ' differs between the two screenshots. ' +
+          'Elements such as text, buttons, images, or cards may have different sizes, positions, or content. ' +
+          'Content inconsistencies confuse users who navigate between pages.';
+        recommendation = 'Compare both screenshots at this region and unify the content, spacing, and layout. ' +
+          'Ensure elements like headings, paragraphs, buttons, and images are consistently positioned and sized.';
+      }
+      return { kind, label, description, recommendation, colorInfo, hex1, hex2 };
+    }
+
     const issues = [];
     let comparedRegion = null;
     try {
       const diff = await diffImagesInBrowser(buf1, buf2);
       if (diff && diff.ok) {
         comparedRegion = { width: diff.width, height: diff.height, dimensionsMatch: diff.dimsMatch };
-        diff.regions.forEach((r, i) => {
-          const dR = Math.abs((r.avg1 && r.avg1[0]) - (r.avg2 && r.avg2[0]));
-          const dG = Math.abs((r.avg1 && r.avg1[1]) - (r.avg2 && r.avg2[1]));
-          const dB = Math.abs((r.avg1 && r.avg1[2]) - (r.avg2 && r.avg2[2]));
-          const colorDelta = dR + dG + dB;
-          const isBackground = r.changeRatio > 0.6;
-          let kind;
-          if (colorDelta > 150) {
-            kind = isBackground ? 'Background colour' : 'Colour';
-          } else {
-            kind = isBackground ? 'Background layout' : 'Content';
+
+        // First pass: classify every region
+        const classified = diff.regions.map((r, i) => {
+          const cls = classifyRegion(r);
+          return { raw: r, index: i, ...cls };
+        });
+
+        // Group nearby regions of the same kind into one combined issue
+        // Two regions are "nearby" if they overlap or are within 80px of each other
+        const groups = [];
+        const used = new Set();
+        for (let i = 0; i < classified.length; i++) {
+          if (used.has(i)) continue;
+          const group = [classified[i]];
+          used.add(i);
+          for (let j = i + 1; j < classified.length; j++) {
+            if (used.has(j)) continue;
+            if (classified[i].kind === classified[j].kind) {
+              const a = classified[i].raw, b = classified[j].raw;
+              const overlap = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+                Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+              const dist = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+              if (overlap > 0 || dist < 80) {
+                group.push(classified[j]);
+                used.add(j);
+              }
+            }
           }
-          const colourNote = (r.avg1 && r.avg2) ? ' (Screenshot 1: ' + toHex(r.avg1[0], r.avg1[1], r.avg1[2]) + ', Screenshot 2: ' + toHex(r.avg2[0], r.avg2[1], r.avg2[2]) + ')' : '';
-          const labelMap = {
-            'Background colour': 'Background colour inconsistent',
-            'Colour': 'Text colour inconsistent',
-            'Background layout': 'Padding/layout inconsistent',
-            'Content': 'Content inconsistent'
-          };
-          const nameLabel = labelMap[kind] || (kind + ' inconsistent');
-          let recommendation;
-          if (kind === 'Background colour') {
-            recommendation = 'The background colour in this region is different on the two pages. Match it to the dominant colour used across the rest of the app so the pages feel consistent.';
-          } else if (kind === 'Colour') {
-            recommendation = 'The text/content colour in this region differs between the two pages. Use the same colour on both pages for consistency.';
-          } else if (kind === 'Background layout') {
-            recommendation = 'The background/layout spacing in this region differs. Align padding, margins and sections so both pages look identical.';
+          groups.push(group);
+        }
+
+        // Second pass: create one issue per group
+        groups.forEach((group, gi) => {
+          const first = group[0];
+          const totalCount = group.length;
+          const totalBlockCount = group.reduce((s, g) => s + g.raw.blockCount, 0);
+
+          // Combined bounding box
+          let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+          let totalArea = 0;
+          group.forEach(g => {
+            minX = Math.min(minX, g.raw.x);
+            minY = Math.min(minY, g.raw.y);
+            maxX = Math.max(maxX, g.raw.x + g.raw.width);
+            maxY = Math.max(maxY, g.raw.y + g.raw.height);
+            totalArea += g.raw.width * g.raw.height;
+          });
+          const combinedBbox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+
+          // Build a comprehensive title
+          let title;
+          if (totalCount === 1) {
+            title = first.label;
           } else {
-            recommendation = 'The content in this region differs. Compare both screenshots here and unify the spacing, typography and layout.';
+            // Summarise what kinds are in this group
+            const kindCounts = {};
+            group.forEach(g => { kindCounts[g.kind] = (kindCounts[g.kind] || 0) + 1; });
+            const parts = Object.entries(kindCounts).map(([k, c]) => c + ' ' + k.replace(/-/g, ' '));
+            title = first.label + ' (' + totalCount + ' affected regions: ' + parts.join(', ') + ')';
           }
+
+          // Comprehensive description that covers ALL issues in the group
+          let fullDesc = first.description;
+          if (totalCount > 1) {
+            // Add a summary of all affected regions
+            const regionList = group.map(g =>
+              '  - ' + g.raw.width + 'x' + g.raw.height + 'px at (' + g.raw.x + ', ' + g.raw.y + ')' + g.colorInfo
+            ).join('\n');
+            fullDesc += '\n\nAffected regions (' + totalCount + '):\n' + regionList;
+            // Add extra context if group mixes kinds
+            const otherKinds = [...new Set(group.map(g => g.kind))];
+            if (otherKinds.length > 1) {
+              fullDesc += '\n\nThis group includes multiple types of differences: ' + otherKinds.join(', ') + '. ' +
+                'All regions should be reviewed together to ensure full visual consistency.';
+            }
+          }
+
+          // Severity based on total impact
+          let severity;
+          if (totalBlockCount >= 10 || totalArea > 50000) severity = 'high';
+          else if (totalBlockCount >= 4 || totalArea > 10000) severity = 'medium';
+          else severity = 'low';
+
           issues.push({
-            id: 'diff-issue-' + i,
+            id: 'diff-issue-' + gi,
             ruleId: 'screenshot-diff',
-            name: nameLabel + ' at (' + r.x + ', ' + r.y + ')',
-            severity: r.blockCount >= 10 ? 'high' : r.blockCount >= 4 ? 'medium' : 'low',
+            name: title,
+            severity,
             category: 'visual-diff',
-            detail: 'A ' + r.width + 'x' + r.height + 'px area at (' + r.x + ', ' + r.y + ') where the two screenshots differ' + colourNote + '.',
-            recommendation,
-            explanation:
-              'This ' + r.width + 'x' + r.height + 'px region at (' + r.x + ', ' + r.y + ') looks different in the two screenshots' + colourNote + '. ' +
-              (kind === 'Background colour' ? 'The background colour of this region is not the same on both pages. ' :
-                kind === 'Colour' ? 'The text/content colour in this region is not the same on both pages. ' :
-                kind === 'Background layout' ? 'The spacing, padding or layout of this region is not the same on both pages. ' :
-                'The content in this region is not the same on both pages. ') +
-              'Matching the two pages keeps the design consistent. ' +
-              'Click "Apply Fix" once the pages match, so this difference is removed from the list.',
+            detail: fullDesc,
+            recommendation: first.recommendation,
+            explanation: fullDesc + '\n\n' + first.recommendation,
             selector: '',
             fixCss: '',
-            bbox: { x: r.x, y: r.y, width: r.width, height: r.height }
+            bbox: combinedBbox
           });
         });
       }
@@ -1719,15 +2004,38 @@ app.post('/scan-all', async (req, res) => {
 
     // Step 1: Navigate to URL and login if needed
     console.log(`  [SCAN] Navigating to ${url}`);
-    await navigateToPage(page, url, 30000, credentials);
+    const navResult = await navigateToPage(page, url, 30000, credentials);
 
     // Wait for SPA to fully load
     try { await page.waitForNetworkIdle({ idleTime: 1000, timeout: 10000 }); } catch (e) {}
     await page.waitForTimeout(3000);
 
-    if (page.url().includes('/login') && credentials) {
+    // If login was attempted but failed, try once more
+    if (navResult.loginAttempted && !navResult.loginSucceeded && page.url().includes('/login') && credentials) {
       console.log(`  [SCAN] Still on login, waiting more...`);
       await page.waitForTimeout(5000);
+      if (await isLoginPage(page)) {
+        console.log(`  [SCAN] Attempting login after wait...`);
+        try {
+          const loggedIn = await attemptLogin(page, credentials);
+          if (loggedIn) console.log(`  [SCAN] Login successful. URL: ${page.url()}`);
+          else console.log(`  [SCAN] Login may have failed`);
+        } catch (e) {
+          console.log(`  [SCAN] Login retry failed: ${e.message}`);
+        }
+      }
+      // If login succeeded but URL is still on /login, re-navigate to base URL
+      if (!(await isLoginPage(page)) || !(await hasVisiblePasswordField(page))) {
+        const curUrl = page.url();
+        if (!curUrl.includes('#/') && !curUrl.includes('#!')) {
+          const baseOrigin = new URL(url).origin;
+          try {
+            await page.goto(baseOrigin, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await page.waitForTimeout(3000);
+            console.log(`  [SCAN] Re-navigated to ${page.url()} after login`);
+          } catch (e) {}
+        }
+      }
     }
 
     console.log(`  [SCAN] Logged in. Current URL: ${page.url()}`);
@@ -1774,6 +2082,7 @@ app.post('/scan-all', async (req, res) => {
 
     const discoverLinks = () => page.evaluate(() => {
       const out = [];
+      // 1) Traditional <a href> links
       document.querySelectorAll('a[href]').forEach(a => {
         try {
           const href = a.getAttribute('href');
@@ -1781,7 +2090,23 @@ app.post('/scan-all', async (req, res) => {
           out.push(new URL(href, location.href).href);
         } catch (e) {}
       });
-      return out;
+      // 2) Buttons/elements with data-href, data-url, data-link attributes
+      document.querySelectorAll('[data-href], [data-url], [data-link]').forEach(el => {
+        try {
+          const href = el.getAttribute('data-href') || el.getAttribute('data-url') || el.getAttribute('data-link');
+          if (href) out.push(new URL(href, location.href).href);
+        } catch (e) {}
+      });
+      // 3) SPA: extract hash routes from clickable nav items (sidebar/menu items)
+      document.querySelectorAll('[role="menuitem"], [role="tab"], nav a, nav button, .sidebar a, .menu a, .nav a, [class*="sidebar"] a, [class*="menu"] a, [class*="nav"] a').forEach(el => {
+        try {
+          const href = el.getAttribute('href');
+          if (href && (href.startsWith('#') || href.startsWith('/'))) {
+            out.push(new URL(href, location.href).href);
+          }
+        } catch (e) {}
+      });
+      return [...new Set(out)];
     });
 
     const queue = [];
@@ -1987,7 +2312,13 @@ app.post('/dismissed', (req, res) => {
   if (typeof body !== 'object' || Array.isArray(body)) {
     return res.status(400).json({ error: 'Expected an object' });
   }
-  dismissedStore = body;
+  for (const [url, keys] of Object.entries(body)) {
+    if (!Array.isArray(keys)) continue;
+    if (!dismissedStore[url]) dismissedStore[url] = [];
+    for (const k of keys) {
+      if (!dismissedStore[url].includes(k)) dismissedStore[url].push(k);
+    }
+  }
   saveDismissedStore();
   res.json({ ok: true });
 });
