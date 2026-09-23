@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UI Testing Agent</title>
+  <title>UI/UX Testing Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -113,6 +113,7 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      min-height: 0;
     }
     .panel-header {
       padding: 14px 18px;
@@ -122,11 +123,13 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-shrink: 0;
     }
     .panel-body {
       flex: 1;
       overflow-y: auto;
       padding: 16px;
+      min-height: 0;
     }
     .panel-body::-webkit-scrollbar { width: 6px; }
     .panel-body::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 3px; }
@@ -277,6 +280,30 @@
       z-index: 3;
       transition: all 0.15s;
     }
+
+    /* Flow Test Log */
+    .file-log {
+      padding: 10px 16px;
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .log-line {
+      display: flex;
+      gap: 10px;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      align-items: baseline;
+    }
+    .log-time { color: var(--text-secondary); flex-shrink: 0; opacity: 0.8; }
+    .log-tag { flex-shrink: 0; font-weight: 700; min-width: 52px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .log-msg { white-space: pre-wrap; word-break: break-word; }
+    .log-info .log-tag, .log-info .log-msg { color: var(--text-secondary); }
+    .log-run .log-tag { color: var(--primary); }
+    .log-run .log-msg { color: var(--text); }
+    .log-pass .log-tag, .log-pass .log-msg { color: var(--success); }
+    .log-fail .log-tag, .log-fail .log-msg { color: var(--danger); }
+    .log-warn .log-tag, .log-warn .log-msg { color: var(--warning); }
     .pv-highlight.show { display: block; }
     .issue-item.clickable { cursor: pointer; }
     .issue-item.selected { outline: 2px solid var(--primary); box-shadow: 0 0 0 4px rgba(127, 184, 0, 0.25); }
@@ -345,15 +372,16 @@
     <button class="tab-btn" data-tab="scanall" onclick="switchTab('scanall', this)">Scan All Pages</button>
     <button class="tab-btn" data-tab="compare" onclick="switchTab('compare', this)">Compare Pages</button>
     <button class="tab-btn" data-tab="screenshots" onclick="switchTab('screenshots', this)">Screenshots</button>
+    <button class="tab-btn" data-tab="flow" onclick="switchTab('flow', this)">Flow Test</button>
+    <button class="tab-btn" data-tab="allflows" onclick="switchTab('allflows', this)">All Flows</button>
   </div>
 
   <!-- ΓöÇΓöÇΓöÇ SINGLE SCAN VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
   <div id="scanView">
     <div class="topbar">
-      <div class="logo">UI <span>Agent</span> <small>UI Testing</small></div>
+      <div class="logo">UI/UX <span>Agent</span> <small>UI/UX Testing</small></div>
       <div class="search-box">
         <input type="url" id="urlInput" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" />
-        <button id="analyzeBtn">Analyze</button>
       </div>
       <div class="row" style="display:flex;gap:6px;flex:1;min-width:280px;align-items:center;">
         <input id="scanUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
@@ -361,6 +389,9 @@
           <input id="scanPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
           <button class="pw-toggle" onclick="togglePw('scanPass', this)" title="Show/Hide password">&#128065;</button>
         </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;flex:1;min-width:280px;">
+        <button id="analyzeBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Analyze</button>
       </div>
       <div class="status-badge">
         <span class="status-dot idle" id="statusDot"></span>
@@ -407,7 +438,6 @@
     <div class="compare-input">
       <div class="row">
         <span style="font-weight:600;font-size:14px;">Compare Pages</span>
-        <button id="compareBtn" style="padding:10px 24px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
       </div>
       <textarea id="compareUrls" placeholder="Enter URLs, one per line&#10;https://example.com/page1&#10;https://example.com/page2&#10;https://example.com/page3"></textarea>
       <div class="row" style="display:flex;margin-top:8px;gap:8px;align-items:center;">
@@ -418,18 +448,38 @@
         </div>
       </div>
       <div class="hint">Enter at least 2 URLs. The agent extracts visual properties (colors, fonts, sizes, spacing) from common elements and reports inconsistencies. If pages require login, provide credentials above.</div>
+      <div style="display:flex;justify-content:flex-end;">
+        <button id="compareBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
+      </div>
       <div id="compareStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
-    <div class="content" style="height:auto;min-height:calc(100vh - 200px);">
-      <div class="panel" style="grid-column:1/-1;">
+    <div class="content">
+      <div class="panel">
         <div class="panel-header">
-          <span>Comparison Results</span>
-          <span id="compSummary" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
+          <span>Dashboard</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-secondary);" id="compSummary"></span>
         </div>
         <div class="panel-body" id="compDashboard">
           <div class="empty-state">
             <h3>Ready to compare</h3>
             <p>Enter at least 2 URLs above and click <strong>Compare</strong>.</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span>Screenshot Preview</span>
+          <span id="compScreenshotTitle" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
+        </div>
+        <div class="panel-body" id="compScreenshotPanel" style="padding:0;display:flex;flex-direction:column;overflow-y:auto;">
+          <div class="preview-frame-wrap" id="compPreviewWrap" style="flex:0 0 auto;min-height:300px;">
+            <div class="pv-spinner" id="compPvSpinner"></div>
+            <img class="pv-img" id="compPvImg" alt="Screenshot" />
+            <div class="pv-highlight" id="compPvHighlight"></div>
+          </div>
+          <div class="preview-frame-wrap" id="compPreviewWrap2" style="flex:0 0 auto;min-height:300px;border-top:1px solid var(--border);">
+            <img class="pv-img" id="compPvImg2" alt="Screenshot" />
+            <div class="pv-highlight" id="compPvHighlight2"></div>
           </div>
         </div>
       </div>
@@ -441,7 +491,6 @@
     <div class="compare-input">
       <div class="row">
         <span style="font-weight:600;font-size:14px;">Compare Screenshots</span>
-        <button id="ssCompareBtn" style="padding:10px 24px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
       </div>
       <div class="row" style="gap:12px;margin-top:12px;">
         <div style="flex:1;">
@@ -453,19 +502,40 @@
           <input type="file" id="ssFile2" accept="image/png,image/jpeg" style="width:100%;padding:8px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;" />
         </div>
       </div>
-      <div class="hint">Upload two screenshots of your pages. The tool compares them and lists the visual differences ΓÇö click an issue to highlight it on both screenshots, then Apply Fix or Ignore it.</div>
+      <div class="hint">Upload two screenshots of your pages. The tool compares them and lists the visual differences - click an issue to highlight it on both screenshots, then Apply Fix or Ignore it.</div>
+      <div style="display:flex;justify-content:flex-end;">
+        <button id="ssCompareBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
+      </div>
       <div id="ssStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
-    <div style="padding:20px 24px;">
+    <div class="content">
       <div class="panel">
         <div class="panel-header">
-          <span>Screenshot Comparison</span>
+          <span>Dashboard</span>
           <span id="ssSummary" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
         </div>
-        <div class="panel-body" id="ssDashboard" style="min-height:400px;">
+        <div class="panel-body" id="ssDashboard">
           <div class="empty-state">
             <h3>Upload screenshots</h3>
             <p>Upload two screenshots of your pages to compare them visually and get best-practice suggestions.</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span>Screenshot Preview</span>
+          <span id="ssScreenshotTitle" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
+        </div>
+        <div class="panel-body" id="ssScreenshotPanel" style="padding:0;display:flex;flex-direction:column;">
+          <div class="preview-frame-wrap" id="ssPreviewWrap">
+            <div class="pv-spinner" id="ssPvSpinner"></div>
+            <img class="pv-img" id="ssPvImg" alt="Screenshot 1" />
+            <div class="pv-highlight" id="ssPvHighlight"></div>
+          </div>
+          <div class="preview-frame-wrap" id="ssPreviewWrap2" style="border-top:1px solid var(--border);">
+            <div class="pv-spinner" id="ssPvSpinner2"></div>
+            <img class="pv-img" id="ssPv2Img" alt="Screenshot 2" />
+            <div class="pv-highlight" id="ssPv2Highlight"></div>
           </div>
         </div>
       </div>
@@ -475,10 +545,9 @@
   <!-- ΓöÇΓöÇΓöÇ SCAN ALL PAGES VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
   <div id="scanAllView" style="display:none;">
     <div class="topbar">
-      <div class="logo">UI <span>Agent</span> <small>Scan All Pages</small></div>
+      <div class="logo">UI/UX <span>Agent</span> <small>Scan All Pages</small></div>
       <div class="search-box">
         <input type="url" id="scanAllUrl" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" />
-        <button id="scanAllBtn" style="background:var(--success);color:#000;">Scan All Pages</button>
       </div>
       <div class="row" style="display:flex;gap:6px;flex:1;min-width:280px;align-items:center;">
         <input id="scanAllUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
@@ -486,6 +555,9 @@
           <input id="scanAllPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
           <button class="pw-toggle" onclick="togglePw('scanAllPass', this)" title="Show/Hide password">&#128065;</button>
         </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;flex:1;min-width:280px;">
+        <button id="scanAllBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Scan All Pages</button>
       </div>
       <div class="status-badge">
         <span class="status-dot idle" id="scanAllDot"></span>
@@ -495,10 +567,138 @@
     <div class="progress-bar">
       <div class="progress-bar-fill" id="scanAllProgress"></div>
     </div>
-    <div id="scanAllResults" style="padding:20px 24px;">
-      <div class="empty-state">
-        <h3>Ready to scan your whole app</h3>
-        <p>Enter the base URL above and click <strong>Scan All Pages</strong>. The agent crawls internal links, analyzes every page, and reports UI inconsistencies across the entire application. Click any issue to highlight it on that page's screenshot, then <strong>Apply Fix</strong> or <strong>Ignore Issue</strong>.</p>
+    <div class="content">
+      <div class="panel">
+        <div class="panel-header">
+          <span>Dashboard</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-secondary);" id="scanAllUrlDisplay"></span>
+        </div>
+        <div class="panel-body" id="scanAllResults">
+          <div class="empty-state">
+            <h3>Ready to scan your whole app</h3>
+            <p>Enter the base URL above and click <strong>Scan All Pages</strong>. The agent crawls internal links, analyzes every page, and reports UI inconsistencies across the entire application. Click any issue to highlight it on that page's screenshot, then <strong>Apply Fix</strong> or <strong>Ignore Issue</strong>.</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span>Screenshot Preview</span>
+          <span id="scanAllScreenshotTitle" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
+        </div>
+        <div class="panel-body" id="scanAllScreenshotPanel" style="padding:0;display:flex;flex-direction:column;">
+          <div class="preview-frame-wrap" id="scanAllPreviewWrap">
+            <div class="pv-spinner" id="scanAllPvSpinner"></div>
+            <img class="pv-img" id="scanAllPvImg" alt="Screenshot" />
+            <div class="pv-highlight" id="scanAllPvHighlight"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ΓöÇΓöÇΓöÇ FLOW TEST VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
+  <div id="flowView" style="display:none;">
+    <div class="compare-input">
+      <div class="row">
+        <span style="font-weight:600;font-size:14px;">Flow Test (Basic UX)</span>
+      </div>
+      <div class="row" style="gap:8px;margin-top:8px;">
+        <input id="flowUrl" type="text" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" style="flex:2;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+        <input id="flowUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+        <div class="pw-wrap" style="flex:1;">
+          <input id="flowPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+          <button class="pw-toggle" onclick="togglePw('flowPass', this)" title="Show/Hide password">&#128065;</button>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:8px;">Write what the user should do — in plain English, one action per line. Example:
+        <code style="display:block;margin-top:4px;font-size:11px;">search for shoes&#10;click add to cart&#10;expect Thank you for your order</code>
+        <code style="display:block;margin-top:4px;font-size:11px;">Also supports the strict format: action | selector | value&#10;(goto | URL, click | selector, type | selector | text, wait | ms, expect | selector, expect-text | text)</code>
+      </div>
+      <label for="flowSteps" style="display:block;margin-top:12px;font-weight:600;font-size:13px;">Flow Actions <span style="color:var(--danger);">*</span> <span style="font-weight:400;font-size:11px;color:var(--text-secondary);">Required — one action per line</span></label>
+      <textarea id="flowSteps" required placeholder="Tell the agent what to do, one step per line:&#10;search for shoes&#10;click add to cart&#10;type email | user@test.com&#10;expect Thank you for your order" style="width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;resize:vertical;min-height:60px;margin-top:6px;"></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <button id="flowRunBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Run Flow</button>
+      </div>
+      <div id="flowStatus" style="font-size:13px;color:var(--text-secondary);display:none;margin-top:8px;"></div>
+    </div>
+    <div class="content">
+      <div class="panel">
+        <div class="panel-header">
+          <span>Flow Results</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-secondary);" id="flowSummary"></span>
+        </div>
+        <div class="panel-body" id="flowDashboard">
+          <div class="empty-state">
+            <h3>Ready to test a user flow</h3>
+            <p>Enter a URL above and click <strong>Run Flow</strong>. The agent steps through the journey, reporting pass/fail for each step and highlighting blockers users would hit.</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span>Flow Test Log</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-secondary);" id="flowLogBar"></span>
+        </div>
+        <div class="panel-body" id="flowLog" style="padding:0;overflow-y:auto;">
+          <div class="file-log">
+            <div class="log-line log-info">
+              <span class="log-time">--:--:--</span>
+              <span class="log-tag">IDLE</span>
+              <span class="log-msg">Step-by-step flow updates will appear here when you run a flow.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ALL FLOWS VIEW ─── -->
+  <div id="allFlowsView" style="display:none;">
+    <div class="compare-input">
+      <div class="row">
+        <span style="font-weight:600;font-size:14px;">All Flows (UX across the whole app)</span>
+      </div>
+      <div class="row" style="gap:8px;margin-top:8px;">
+        <input id="allFlowsUrl" type="text" placeholder="Enter your app&#39;s main URL (e.g. https://example.com/)" autocomplete="off" style="flex:2;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+        <input id="allFlowsUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+        <div class="pw-wrap" style="flex:1;">
+          <input id="allFlowsPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
+          <button class="pw-toggle" onclick="togglePw('allFlowsPass', this)" title="Show/Hide password">&#128065;</button>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:8px;">The agent signs in, crawls the app&#39;s internal pages, then runs generic UX journeys — navigation, search, form submit feedback and record/detail open — reporting a pass/fail summary for each journey across the whole application.</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+        <button id="allFlowsRunBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Run All Flows</button>
+      </div>
+      <div id="allFlowsStatus" style="font-size:13px;color:var(--text-secondary);display:none;margin-top:8px;"></div>
+    </div>
+    <div class="content">
+      <div class="panel">
+        <div class="panel-header">
+          <span>Journey Results</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-secondary);" id="allFlowsSummary"></span>
+        </div>
+        <div class="panel-body" id="allFlowsDashboard">
+          <div class="empty-state">
+            <h3>Ready to test all flows</h3>
+            <p>Enter your app&#39;s main URL (and credentials if it needs login) and click <strong>Run All Flows</strong> to check the whole application&#39;s journeys.</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span>Flow Test Log</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-secondary);" id="allFlowsLogBar"></span>
+        </div>
+        <div class="panel-body" id="allFlowsLog" style="padding:0;">
+          <div class="file-log">
+            <div class="log-line log-info">
+              <span class="log-time">--:--:--</span>
+              <span class="log-tag">IDLE</span>
+              <span class="log-msg">Flow-by-flow test updates will appear here when you run all flows.</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -924,6 +1124,274 @@
         'inconsistent-footer-padding': {
           desc: 'Footers have inconsistent padding, making the bottom layout feel uneven.',
           suggestion: 'Apply uniform footer padding across all pages for consistent spacing.'
+        },
+        'ux-missing-alt': {
+          desc: 'This image has no alt attribute. Screen readers cannot describe it to visually impaired users.',
+          suggestion: 'Add an alt attribute with a description of the image content. For decorative images, use alt="".'
+        },
+        'ux-empty-alt-link': {
+          desc: 'This linked image has alt="" which makes the link inaccessible to screen reader users.',
+          suggestion: 'Add a descriptive alt text so screen reader users know the link destination.'
+        },
+        'ux-missing-label': {
+          desc: 'This form field has no associated label. Screen readers cannot identify it.',
+          suggestion: 'Add a <label> element with for="...", or use aria-label="Description".'
+        },
+        'ux-missing-aria': {
+          desc: 'This button has no visible text, ARIA label, or icon. Screen readers cannot describe it.',
+          suggestion: 'Add aria-label="Action description" or include visible text.'
+        },
+        'ux-missing-lang': {
+          desc: 'The <html> element has no lang attribute. Screen readers need this to pronounce content correctly.',
+          suggestion: 'Add lang="en" (or the appropriate language code) to the <html> element.'
+        },
+        'ux-heading-skip': {
+          desc: 'Heading jumps multiple levels (e.g., h1 to h3). Screen reader users navigating by headings will be confused.',
+          suggestion: 'Change this to the next level or restructure headings to follow a sequential hierarchy.'
+        },
+        'ux-missing-h1': {
+          desc: 'This page has headings but no <h1>. The h1 should describe the main content of the page.',
+          suggestion: 'Add an <h1> heading that describes the primary content of this page.'
+        },
+        'ux-multiple-h1': {
+          desc: 'This page has multiple <h1> elements. Best practice is to have exactly one <h1> per page.',
+          suggestion: 'Use only one <h1> for the main page title; demote secondary headings to <h2> or lower.'
+        },
+        'ux-empty-link': {
+          desc: 'This link has no visible text or alt text on child images. Screen readers cannot describe it.',
+          suggestion: 'Add descriptive text content, an aria-label, or alt text on a child image.'
+        },
+        'ux-vague-link': {
+          desc: 'Link text is vague and not descriptive out of context.',
+          suggestion: 'Use descriptive text like "Read our pricing guide" instead of "click here".'
+        },
+        'ux-no-skip-nav': {
+          desc: 'This page has substantial content but no skip navigation link. Keyboard users must tab through all navigation to reach content.',
+          suggestion: 'Add a visually hidden "Skip to main content" link at the top of the page.'
+        },
+        'ux-no-focus': {
+          desc: 'This interactive element appears to have no visible focus indicator. Keyboard users cannot see which element is focused.',
+          suggestion: 'Add a visible focus style: outline: 2px solid blue; or box-shadow on :focus-visible.'
+        },
+        'ux-small-touch': {
+          desc: 'This element is smaller than the recommended 44x44px minimum. Users may struggle to tap it on mobile devices.',
+          suggestion: 'Increase the element size to at least 44x44px by adding padding or using min-height/min-width.'
+        },
+        'ux-positive-tabindex': {
+          desc: 'Positive tabindex values alter the natural tab order, confusing keyboard users.',
+          suggestion: 'Use tabindex="0" to add to the natural tab order, or tabindex="-1" for programmatic focus only.'
+        },
+        'ux-no-error-feedback': {
+          desc: 'This form has required fields but no visible error container. Users may not understand why submission failed.',
+          suggestion: 'Add a role="alert" element or aria-invalid + aria-describedby to show validation errors.'
+        },
+        'ux-inline-handler': {
+          desc: 'This element uses an inline event handler. Inline handlers mix behavior with markup and are harder to maintain.',
+          suggestion: 'Move event handling to JavaScript addEventListener() for cleaner separation of concerns.'
+        },
+        'ux-missing-title': {
+          desc: 'This page has no <title> element or it is empty. Users and search engines need a title to identify the page.',
+          suggestion: 'Add a descriptive <title> element in the <head> section.'
+        },
+        'ux-no-viewport': {
+          desc: 'This page is missing the viewport meta tag. It will not scale properly on mobile devices.',
+          suggestion: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> in the <head>.'
+        },
+        'ux-no-meta-desc': {
+          desc: 'This page has no meta description. Search engines use this to generate search result snippets.',
+          suggestion: 'Add <meta name="description" content="Brief description of this page"> in the <head>.'
+        },
+        'ux-img-no-dimensions': {
+          desc: 'This image has no width or height attribute. The page layout will shift when the image loads (CLS).',
+          suggestion: 'Add width and height attributes matching the image\'s intrinsic dimensions.'
+        },
+        'ux-autoplay-media': {
+          desc: 'This media element has autoplay enabled. Auto-playing audio/video can be disruptive for users.',
+          suggestion: 'Remove the autoplay attribute and let users choose to play the media.'
+        },
+        'ux-no-main-region': {
+          desc: 'This page has substantial content but no <main> element. Landmark regions help screen readers navigate.',
+          suggestion: 'Wrap the primary content in a <main> element.'
+        },
+        'ux-low-contrast': {
+          desc: 'Text contrast ratio is below the minimum. Text may be unreadable for users with low vision.',
+          suggestion: 'Increase contrast by darkening the text or lightening the background. Use a contrast checker tool.'
+        },
+        'ux-no-nav-region': {
+          desc: 'This page has multiple links but no navigation landmark. Screen readers use landmarks for quick navigation.',
+          suggestion: 'Wrap the main navigation links in a <nav> element.'
+        },
+        'ux-deep-nav': {
+          desc: 'Navigation is nested very deep. Deep navigation makes it harder for users to find content.',
+          suggestion: 'Flatten the navigation to 2-3 levels max. Consider using mega menus or breadcrumbs for deeper content.'
+        },
+        'ux-no-breadcrumbs': {
+          desc: 'This page is deep in the site hierarchy but has no breadcrumb navigation.',
+          suggestion: 'Add a breadcrumb trail showing the page hierarchy (e.g., Home > Category > Page).'
+        },
+        'ux-no-external-indicator': {
+          desc: 'This link goes to an external site but has no visual indicator.',
+          suggestion: 'Add an external link icon or "(opens in new tab)" text for external links.'
+        },
+        'ux-dead-end': {
+          desc: 'This page has no internal links or call-to-action buttons. Users have no way to navigate forward.',
+          suggestion: 'Add navigation links, related content, or a call-to-action to guide users to the next step.'
+        },
+        'ux-no-progress': {
+          desc: 'This page has multiple forms but no visible step/progress indicator.',
+          suggestion: 'Add a step indicator (e.g., "Step 2 of 4") or progress bar for multi-step flows.'
+        },
+        'ux-no-back-option': {
+          desc: 'This form has a submit button but no back or cancel option.',
+          suggestion: 'Add a "Back" link or "Cancel" button to let users exit the form.'
+        },
+        'ux-no-cta': {
+          desc: 'This page has forms but no visible button or call-to-action.',
+          suggestion: 'Add a clearly labeled button (e.g., "Submit", "Save", "Continue") to each form.'
+        },
+        'ux-many-ctas': {
+          desc: 'This page has too many visually prominent buttons competing for attention.',
+          suggestion: 'Limit to 1-2 primary CTAs per screen. Use secondary styling for less important actions.'
+        },
+        'ux-vague-cta': {
+          desc: 'Button text is vague and doesn\'t describe what happens when clicked.',
+          suggestion: 'Use action-oriented labels like "Save Changes", "Delete Account", or "Start Free Trial".'
+        },
+        'ux-disabled-no-reason': {
+          desc: 'This button is disabled but gives no explanation why.',
+          suggestion: 'Add a tooltip, aria-describedby, or helper text explaining why the button is disabled.'
+        },
+        'ux-no-fieldset': {
+          desc: 'Radio buttons or checkboxes are not grouped with a <fieldset> and <legend>.',
+          suggestion: 'Wrap related controls in <fieldset><legend>Group label</legend>...</fieldset>.'
+        },
+        'ux-no-input-hints': {
+          desc: 'Several form fields lack placeholder text or hints for expected format.',
+          suggestion: 'Add placeholder text or aria-describedby hints showing expected format (e.g., "MM/DD/YYYY").'
+        },
+        'ux-no-pw-toggle': {
+          desc: 'This password field has no show/hide toggle.',
+          suggestion: 'Add a toggle button to show/hide the password.'
+        },
+        'ux-no-autocomplete': {
+          desc: 'This input has no autocomplete attribute. Browsers can\'t auto-fill common fields.',
+          suggestion: 'Add autocomplete="email", autocomplete="name", etc. to help browsers fill in known values.'
+        },
+        'ux-no-search': {
+          desc: 'This page has many links but no search functionality.',
+          suggestion: 'Add a search input to the header or navigation area.'
+        },
+        'ux-search-no-submit': {
+          desc: 'This search input has no submit button.',
+          suggestion: 'Add a search button or magnifying glass icon next to the input.'
+        },
+        'ux-search-no-label': {
+          desc: 'This search input has no placeholder, aria-label, or role="search".',
+          suggestion: 'Add placeholder="Search..." or aria-label="Search" to the input.'
+        },
+        'ux-broken-image': {
+          desc: 'This image failed to load (broken URL or 404).',
+          suggestion: 'Fix the image URL or remove the broken image element.'
+        },
+        'ux-broken-link': {
+          desc: 'This link points to a placeholder or error page.',
+          suggestion: 'Update the link to point to the correct destination, or remove it.'
+        },
+        'ux-form-no-action': {
+          desc: 'This form has no action attribute. It\'s unclear where form data will be submitted.',
+          suggestion: 'Add an action attribute or handle submission via JavaScript with proper error handling.'
+        },
+        'ux-no-lazy-load': {
+          desc: 'Images below the fold are not lazy-loaded, delaying initial page load.',
+          suggestion: 'Add loading="lazy" to below-the-fold images to improve page load performance.'
+        },
+        'ux-no-live-region': {
+          desc: 'Dynamic elements exist but no aria-live regions. Screen readers won\'t announce updates.',
+          suggestion: 'Add aria-live="polite" to containers with dynamic content so screen readers announce changes.'
+        },
+        'ux-no-empty-state': {
+          desc: 'Main content area appears empty with no loading skeleton or spinner.',
+          suggestion: 'Add a loading skeleton or spinner while content is being fetched.'
+        },
+        'ux-inconsistent-casing': {
+          desc: 'Button text casing is mixed across the page.',
+          suggestion: 'Standardize button text casing (all Title Case or all Sentence case).'
+        },
+        'ux-mixed-icon-styles': {
+          desc: 'This page uses multiple icon styles (SVG, icon fonts, images).',
+          suggestion: 'Use a single icon system (all SVG, or all one icon font) for consistency.'
+        },
+        'ux-inconsistent-radius': {
+          desc: 'Cards use different border-radius values.',
+          suggestion: 'Use a consistent border-radius for all card-like elements.'
+        },
+        'ux-fixed-width': {
+          desc: 'This element has a fixed width that may overflow on smaller screens.',
+          suggestion: 'Use max-width instead of width, or use responsive units (%, vw, rem).'
+        },
+        'ux-horizontal-scroll': {
+          desc: 'The page content is wider than the viewport, causing horizontal scrolling.',
+          suggestion: 'Check for elements wider than 100vw and use overflow-x: hidden or responsive sizing.'
+        },
+        'ux-links-too-close': {
+          desc: 'Some navigation links are very close together on mobile.',
+          suggestion: 'Add more padding between navigation links (at least 12px gap).'
+        },
+        'ux-positive-tabindex': {
+          desc: 'Positive tabindex values disrupt the natural tab order.',
+          suggestion: 'Use tabindex="0" to add to natural order, or tabindex="-1" for programmatic focus only.'
+        },
+        'ux-negative-tabindex': {
+          desc: 'This interactive element is hidden from keyboard navigation.',
+          suggestion: 'Remove tabindex="-1" so keyboard users can access this element.'
+        },
+        'ux-global-outline-none': {
+          desc: 'Focus outlines appear to be globally suppressed.',
+          suggestion: 'Remove global outline:none rules, or add :focus-visible styles for keyboard users.'
+        },
+        'ux-clickable-not-focusable': {
+          desc: 'This clickable element is not in the tab order.',
+          suggestion: 'Add tabindex="0" and handle Enter/Space key events, or use a <button> element instead.'
+        },
+        'ux-no-skip-nav': {
+          desc: 'This page is tall but has no skip navigation link for keyboard users.',
+          suggestion: 'Add a visually hidden "Skip to main content" link at the top of the page.'
+        },
+        'ux-conflicting-actions': {
+          desc: 'Destructive and positive action buttons look identical.',
+          suggestion: 'Style destructive actions differently (red/outlined) vs positive actions (green/filled).'
+        },
+        'ux-no-delete-confirm': {
+          desc: 'Destructive action triggers without asking the user to confirm.',
+          suggestion: 'Add a confirmation dialog before executing destructive actions.'
+        },
+        'ux-no-success-feedback': {
+          desc: 'This page has forms but no visible success feedback area.',
+          suggestion: 'Add a toast notification, inline message, or success banner to confirm successful actions.'
+        },
+        'ux-unclear-submit': {
+          desc: 'The submit button text doesn\'t tell users what will happen.',
+          suggestion: 'Use action-oriented text like "Create Account", "Send Message", or "Place Order".'
+        },
+        'ux-no-viewport': {
+          desc: 'This page is missing the viewport meta tag and will not scale on mobile.',
+          suggestion: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> in the <head>.'
+        },
+        'ux-no-meta-desc': {
+          desc: 'This page has no meta description for search engines.',
+          suggestion: 'Add <meta name="description" content="Brief description"> in the <head>.'
+        },
+        'ux-img-no-dimensions': {
+          desc: 'This image has no width/height attributes, causing layout shift (CLS).',
+          suggestion: 'Add width and height attributes matching the image\'s intrinsic dimensions.'
+        },
+        'ux-autoplay-media': {
+          desc: 'This media element has autoplay enabled which can be disruptive.',
+          suggestion: 'Remove the autoplay attribute and let users choose to play the media.'
+        },
+        'ux-no-main-region': {
+          desc: 'This page has no <main> landmark region for screen readers.',
+          suggestion: 'Wrap the primary content in a <main> element.'
         }
       };
       const match = helpMap[issue.ruleId];
@@ -1057,6 +1525,8 @@
       document.getElementById('scanAllView').style.display = tab === 'scanall' ? '' : 'none';
       document.getElementById('compareView').style.display = tab === 'compare' ? '' : 'none';
       document.getElementById('screenshotsView').style.display = tab === 'screenshots' ? '' : 'none';
+      document.getElementById('flowView').style.display = tab === 'flow' ? '' : 'none';
+      document.getElementById('allFlowsView').style.display = tab === 'allflows' ? '' : 'none';
       // Reset screenshots panel to empty state if no comparison done
       if (tab === 'screenshots' && !ssCompareState.data) {
         document.getElementById('ssDashboard').innerHTML = '<div class="empty-state"><h3>Upload screenshots</h3><p>Upload two screenshots of your pages to compare them visually and get best-practice suggestions.</p></div>';
@@ -1133,19 +1603,31 @@
 
       let leftHtml = '';
 
+      // 4 stat cards matching single scan layout
+      const compTotal = compareState.issues.length;
+      const compFixed = compareState.fixed.size;
+      const compOpen = compTotal - compFixed;
+      const compWarnings = compareState.warned.size;
+      leftHtml += '<div class="stats-row">';
+      leftHtml += '<div class="stat-card total"><div class="num">' + compTotal + '</div><div class="label">Issues</div></div>';
+      leftHtml += '<div class="stat-card open"><div class="num">' + compOpen + '</div><div class="label">Open</div></div>';
+      leftHtml += '<div class="stat-card fixed"><div class="num">' + compFixed + '</div><div class="label">Fixed</div></div>';
+      leftHtml += '<div class="stat-card warning"><div class="num">' + compWarnings + '</div><div class="label">Warnings</div></div>';
+      leftHtml += '</div>';
+
       // Interactive cross-page issues (click to highlight on the page screenshot)
       leftHtml += renderCompareIssues();
 
       if (comparisons.length === 0 && compareState.issues.length === 0) {
-        html += '<div class="empty-state"><h3>No inconsistencies found</h3><p>All pages appear visually consistent for the checked element types.</p></div>';
+        leftHtml += '<div class="empty-state"><h3>No inconsistencies found</h3><p>All pages appear visually consistent for the checked element types.</p></div>';
         if (suggestions.length > 0) {
-          html += '<div style="margin-top:20px;"><strong style="font-size:13px;">Suggestions</strong></div>';
+          leftHtml += '<div style="margin-top:20px;"><strong style="font-size:13px;">Suggestions</strong></div>';
           suggestions.forEach(sug => {
             const sevColor = sug.severity === 'high' ? 'var(--danger)' : sug.severity === 'medium' ? 'var(--warning)' : 'var(--text-secondary)';
-            html += '<div class="comp-card"><div class="comp-card-header"><span>' + sug.type.replace(/-/g, ' ') + '</span><span style="color:' + sevColor + ';font-weight:400;">' + sug.severity + '</span></div><div class="comp-card-body" style="font-size:12px;color:var(--text-primary);">' + escapeHtml(sug.suggestion) + '</div></div>';
+            leftHtml += '<div class="comp-card"><div class="comp-card-header"><span>' + sug.type.replace(/-/g, ' ') + '</span><span style="color:' + sevColor + ';font-weight:400;">' + sug.severity + '</span></div><div class="comp-card-body" style="font-size:12px;color:var(--text-primary);">' + escapeHtml(sug.suggestion) + '</div></div>';
           });
         }
-        compDash.innerHTML = html;
+        compDash.innerHTML = leftHtml;
         compDash.scrollTop = 0;
         return;
       }
@@ -1234,32 +1716,27 @@
         });
       }
 
-      // Right side: screenshots scrollable
-      let rightHtml = '';
-      if (compareState.screenshots.length > 0) {
-        rightHtml += '<div style="display:flex;flex-direction:column;gap:12px;">';
-        compareState.screenshots.forEach((ss, i) => {
-          rightHtml += '<div id="cmpPvWrap-' + i + '" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
-          rightHtml += '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--text);">' + escapeHtml(ss.url) + '</div>';
-          if (ss.data) {
-            rightHtml += '<div class="preview-frame-wrap" style="height:300px;padding:8px;background:#41808B;">';
-            rightHtml += '<img id="cmpPvImg-' + i + '" src="data:image/png;base64,' + ss.data + '" alt="' + escapeHtml(ss.url) + '" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,0.4);" />';
-            rightHtml += '<div class="pv-highlight" id="cmpPvHighlight-' + i + '"></div>';
-            rightHtml += '</div>';
-          } else {
-            rightHtml += '<div style="padding:40px;text-align:center;color:var(--text-secondary);">Failed</div>';
-          }
-          rightHtml += '</div>';
-        });
-        rightHtml += '</div>';
-      }
-
-      compDash.innerHTML =
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;height:calc(100vh - 200px);overflow:hidden;">' +
-          '<div style="overflow-y:auto;padding-right:8px;">' + leftHtml + '</div>' +
-          '<div style="overflow-y:auto;padding-left:8px;border-left:1px solid var(--border);">' + rightHtml + '</div>' +
-        '</div>';
+      compDash.innerHTML = leftHtml;
       compDash.scrollTop = 0;
+
+      // Right panel: show BOTH page screenshots (scrollable)
+      if (compareState.screenshots.length > 0) {
+        const ss1 = compareState.screenshots[0];
+        const ss2 = compareState.screenshots[1];
+        if (ss1 && ss1.data) {
+          const pvImg = $('compPvImg');
+          pvImg.src = 'data:image/png;base64,' + ss1.data;
+          pvImg.classList.add('show');
+          $('compPvSpinner').classList.remove('show');
+        }
+        if (ss2 && ss2.data) {
+          const pvImg2 = $('compPvImg2');
+          pvImg2.src = 'data:image/png;base64,' + ss2.data;
+          pvImg2.classList.add('show');
+        }
+        $('compScreenshotTitle').textContent = 'Page 1 vs Page 2';
+        compareState._activeIdx = -1;
+      }
     }
 
     function renderCompareIssues() {
@@ -1390,30 +1867,47 @@
 
       const issue = compareState.issues.find(i => i.id === key);
       const idx = issue && issue.url ? compareState.urlMap[issue.url] : -1;
-      const bbox = issue && issue.bbox;
-      const pvImg = idx >= 0 ? document.getElementById('cmpPvImg-' + idx) : null;
-      const hl = idx >= 0 ? document.getElementById('cmpPvHighlight-' + idx) : null;
-      if (!issue || !bbox || !pvImg || pvImg.naturalWidth === 0) {
-        if (hl) hl.classList.remove('show');
-        if (issue && !pvImg) showToast('No screenshot available for this page', 'info');
+      let bbox = issue && issue.bbox;
+
+      // Clear previous highlights
+      $('compPvHighlight').classList.remove('show');
+      $('compPvHighlight2').classList.remove('show');
+
+      if (!issue) return;
+
+      // If no bbox from server, try to get it from the screenshot dimensions
+      if (!bbox && issue.selector) {
+        // Try to find element on agent page by selector for a rough bbox
+        try {
+          const el = document.querySelector(issue.selector);
+          if (el) {
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+              bbox = { x: r.x + window.scrollX, y: r.y + window.scrollY, width: r.width, height: r.height };
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (!bbox) {
+        showToast('No coordinates available for "' + issue.name + '"', 'info');
         return;
       }
 
-      const wrap = document.getElementById('cmpPvWrap-' + idx);
-      wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-      const box = computeHighlightBox(wrap, pvImg, bbox);
-      if (!box) {
-        hl.classList.remove('show');
-        showToast('Element is not visible in the screenshot', 'info');
-        return;
+      // Highlight on the matching page's screenshot
+      if (idx === 0) {
+        const wrap = $('compPreviewWrap');
+        const pvImg = $('compPvImg');
+        const hl = $('compPvHighlight');
+        if (pvImg && pvImg.naturalWidth > 0) highlightOnPanel(wrap, pvImg, hl, bbox);
+      } else if (idx === 1) {
+        const wrap = $('compPreviewWrap2');
+        const pvImg = $('compPvImg2');
+        const hl = $('compPvHighlight2');
+        if (pvImg && pvImg.naturalWidth > 0) highlightOnPanel(wrap, pvImg, hl, bbox);
+      } else {
+        showToast('No screenshot available for this page', 'info');
       }
-
-      hl.style.left = box.x + 'px';
-      hl.style.top = box.y + 'px';
-      hl.style.width = box.w + 'px';
-      hl.style.height = box.h + 'px';
-      hl.classList.add('show');
     }
 
     async function verifyCompareFix(issue) {
@@ -1627,8 +2121,20 @@
       const ssDash = document.getElementById('ssDashboard');
       document.getElementById('ssSummary').textContent = data.dimensions1 + ' vs ' + data.dimensions2;
 
-      // LEFT: issues
+      // LEFT: issues only
       let leftHtml = '';
+
+      // 4 stat cards matching single scan layout
+      const ssTotal = ssCompareState.issues.length;
+      const ssFixed = ssCompareState.fixed.size;
+      const ssOpen = ssTotal - ssFixed;
+      const ssWarnings = ssCompareState.warned.size;
+      leftHtml += '<div class="stats-row">';
+      leftHtml += '<div class="stat-card total"><div class="num">' + ssTotal + '</div><div class="label">Issues</div></div>';
+      leftHtml += '<div class="stat-card open"><div class="num">' + ssOpen + '</div><div class="label">Open</div></div>';
+      leftHtml += '<div class="stat-card fixed"><div class="num">' + ssFixed + '</div><div class="label">Fixed</div></div>';
+      leftHtml += '<div class="stat-card warning"><div class="num">' + ssWarnings + '</div><div class="label">Warnings</div></div>';
+      leftHtml += '</div>';
 
       if (ssCompareState.issues.length > 0) {
         leftHtml += '<div class="issue-list">';
@@ -1639,7 +2145,10 @@
           const friendly = friendlyScreenshotIssue(issue);
           leftHtml += '<div class="issue-item severity-' + issue.severity + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (ssCompareState.selected === issue.id ? ' selected' : '') + '" onclick="highlightScreenshotIssue(\'' + issue.id + '\', event)">';
           leftHtml += '<div class="issue-header"><span class="issue-title">' + escapeHtml(friendly.title) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
-          leftHtml += '<div class="issue-desc">' + friendly.desc + '</div>';
+          leftHtml += '<div class="issue-desc">' + escapeHtml(issue.detail || friendly.desc) + '</div>';
+          if (issue.explanation) {
+            leftHtml += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
+          }
           if (friendly.suggestion) {
             leftHtml += '<div class="issue-suggestion">' + escapeHtml(friendly.suggestion) + '</div>';
           }
@@ -1657,27 +2166,19 @@
         leftHtml += '<div class="empty-state" style="padding:40px 20px;"><h3 style="color:var(--success);">No differences found</h3><p>The two screenshots look identical.</p></div>';
       }
 
-      // RIGHT: screenshots only, no extra messages
-      let rightHtml = '<div style="display:flex;flex-direction:column;gap:12px;">';
-      rightHtml += '<div id="ssPvWrap" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
-      rightHtml += '<div class="preview-frame-wrap" style="height:400px;padding:8px;background:#41808B;">';
-      rightHtml += '<img id="ssPvImg" src="data:image/png;base64,' + data.img1 + '" alt="Screenshot 1" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;" />';
-      rightHtml += '<div class="pv-highlight" id="ssPvHighlight"></div>';
-      rightHtml += '</div></div>';
-
-      rightHtml += '<div id="ssPv2Wrap" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
-      rightHtml += '<div class="preview-frame-wrap" style="height:400px;padding:8px;background:#41808B;">';
-      rightHtml += '<img id="ssPv2Img" src="data:image/png;base64,' + data.img2 + '" alt="Screenshot 2" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;" />';
-      rightHtml += '<div class="pv-highlight" id="ssPv2Highlight"></div>';
-      rightHtml += '</div></div>';
-      rightHtml += '</div>';
-
-      ssDash.innerHTML =
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;height:calc(100vh - 200px);overflow:hidden;">' +
-          '<div style="overflow-y:auto;padding-right:8px;">' + leftHtml + '</div>' +
-          '<div style="overflow-y:auto;padding-left:8px;border-left:1px solid var(--border);">' + rightHtml + '</div>' +
-        '</div>';
+      ssDash.innerHTML = leftHtml;
       ssDash.scrollTop = 0;
+
+      // RIGHT panel: set screenshot images
+      const pvImg1 = $('ssPvImg');
+      const pvImg2 = $('ssPv2Img');
+      pvImg1.src = 'data:image/png;base64,' + data.img1;
+      pvImg1.classList.add('show');
+      pvImg2.src = 'data:image/png;base64,' + data.img2;
+      pvImg2.classList.add('show');
+      $('ssPvSpinner').classList.remove('show');
+      $('ssPvSpinner2').classList.remove('show');
+      document.getElementById('ssScreenshotTitle').textContent = 'Screenshot 1 vs 2';
     }
 
     function friendlyScreenshotIssue(issue) {
@@ -1685,15 +2186,20 @@
       const detail = issue.detail || '';
       const recommendation = issue.recommendation || '';
       const explanation = issue.explanation || '';
-      // The server provides comprehensive human-readable name/detail now
       let title = name.replace(/_/g, ' ');
       title = title.charAt(0).toUpperCase() + title.slice(1);
-      // Use the explanation as the primary description (more comprehensive),
-      // fall back to detail if explanation is missing
       let desc = explanation || detail;
-      // Convert newlines in desc to <br> for HTML display
       desc = desc.replace(/\n/g, '<br>');
       let sug = recommendation;
+      if (!sug) {
+        if (title.toLowerCase().includes('color')) sug = 'Use a consistent color palette across both screenshots to maintain visual identity.';
+        else if (title.toLowerCase().includes('size') || title.toLowerCase().includes('dimension')) sug = 'Ensure both pages use the same element dimensions for layout consistency.';
+        else if (title.toLowerCase().includes('text') || title.toLowerCase().includes('font')) sug = 'Use the same font size, weight, and family across both pages.';
+        else if (title.toLowerCase().includes('spacing') || title.toLowerCase().includes('padding') || title.toLowerCase().includes('margin')) sug = 'Apply consistent spacing values across both pages.';
+        else if (title.toLowerCase().includes('alignment')) sug = 'Keep text and element alignment consistent across both pages.';
+        else if (title.toLowerCase().includes('border')) sug = 'Use matching border styles and radius across both pages.';
+        else sug = 'Review this visual difference and apply consistent styling across both pages.';
+      }
       return { title, desc, suggestion: sug };
     }
 
@@ -1705,32 +2211,19 @@
 
       const issue = ssCompareState.issues.find(i => i.id === key);
       const bbox = issue && issue.bbox;
-      const pvImg = document.getElementById('ssPvImg');
-      const hl = document.getElementById('ssPvHighlight');
+      const pvImg = $('ssPvImg');
+      const hl = $('ssPvHighlight');
+      const wrap = $('ssPreviewWrap');
       if (!issue || !bbox || !pvImg || pvImg.naturalWidth === 0) {
         if (hl) hl.classList.remove('show');
         return;
       }
 
-      const wrap = document.getElementById('ssPvWrap');
-      wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      highlightOnPanel(wrap, pvImg, hl, bbox);
 
-      const box = computeHighlightBox(wrap, pvImg, bbox);
-      if (!box) {
-        hl.classList.remove('show');
-        showToast('Element is not visible in the screenshot', 'info');
-        return;
-      }
-
-      hl.style.left = box.x + 'px';
-      hl.style.top = box.y + 'px';
-      hl.style.width = box.w + 'px';
-      hl.style.height = box.h + 'px';
-      hl.classList.add('show');
-
-      const pvImg2 = document.getElementById('ssPv2Img');
-      const hl2 = document.getElementById('ssPv2Highlight');
-      const wrap2 = document.getElementById('ssPv2Wrap');
+      const pvImg2 = $('ssPv2Img');
+      const hl2 = $('ssPv2Highlight');
+      const wrap2 = $('ssPreviewWrap2');
       if (pvImg2 && hl2 && wrap2 && pvImg2.naturalWidth > 0) {
         const box2 = computeHighlightBox(wrap2, pvImg2, bbox);
         if (box2) {
@@ -1889,6 +2382,7 @@
     function renderScanAllResults() {
       const dash = $('scanAllResults');
       const pages = scanAllState.pages;
+      const ssTitle = $('scanAllScreenshotTitle');
 
       if (pages.length === 0) {
         dash.innerHTML = '<div class="empty-state"><h3>No pages to show</h3><p>Try scanning again.</p></div>';
@@ -1903,24 +2397,23 @@
       const totalMed = pages.reduce((s, p) => s + (p.issues ? p.issues.filter(i => i.severity === 'medium').length : 0), 0);
       const totalLow = pages.reduce((s, p) => s + (p.issues ? p.issues.filter(i => i.severity === 'low').length : 0), 0);
 
-      let leftHtml = '';
+      let html = '';
 
-      leftHtml += '<div class="stats-row" style="margin-bottom:20px;">';
-      leftHtml += '<div class="stat-card total"><div class="num">' + totalPages + '</div><div class="label">Pages Scanned</div></div>';
-      leftHtml += '<div class="stat-card open"><div class="num">' + totalIssues + '</div><div class="label">Total Issues</div></div>';
-      leftHtml += '<div class="stat-card warning"><div class="num">' + pagesWithIssues + '</div><div class="label">Pages with Issues</div></div>';
-      leftHtml += '<div class="stat-card fixed"><div class="num">' + pagesClean + '</div><div class="label">Clean Pages</div></div>';
-      leftHtml += '</div>';
+      html += '<div class="stats-row" style="margin-bottom:20px;">';
+      html += '<div class="stat-card total"><div class="num">' + totalPages + '</div><div class="label">Pages Scanned</div></div>';
+      html += '<div class="stat-card open"><div class="num">' + totalIssues + '</div><div class="label">Total Issues</div></div>';
+      html += '<div class="stat-card warning"><div class="num">' + pagesWithIssues + '</div><div class="label">Pages with Issues</div></div>';
+      html += '<div class="stat-card fixed"><div class="num">' + pagesClean + '</div><div class="label">Clean Pages</div></div>';
+      html += '</div>';
 
-      leftHtml += '<div class="stats-row" style="margin-bottom:20px;">';
-      leftHtml += '<div class="stat-card open"><div class="num">' + totalHigh + '</div><div class="label">High Issues</div></div>';
-      leftHtml += '<div class="stat-card warning"><div class="num">' + totalMed + '</div><div class="label">Medium Issues</div></div>';
-      leftHtml += '<div class="stat-card fixed"><div class="num">' + totalLow + '</div><div class="label">Low Issues</div></div>';
-      leftHtml += '</div>';
+      html += '<div class="stats-row" style="margin-bottom:20px;">';
+      html += '<div class="stat-card open"><div class="num">' + totalHigh + '</div><div class="label">High Issues</div></div>';
+      html += '<div class="stat-card warning"><div class="num">' + totalMed + '</div><div class="label">Medium Issues</div></div>';
+      html += '<div class="stat-card fixed"><div class="num">' + totalLow + '</div><div class="label">Low Issues</div></div>';
+      html += '</div>';
 
-      leftHtml += renderCrossPageComparisons();
+      html += renderCrossPageComparisons();
 
-      // Each page: issues only (no screenshot here)
       pages.forEach((page, idx) => {
         const issueCount = page.issues ? page.issues.length : 0;
         const sevHigh = page.issues ? page.issues.filter(i => i.severity === 'high').length : 0;
@@ -1929,70 +2422,55 @@
         const pageLabel = getPageLabel(page.url);
         const borderColor = issueCount === 0 ? 'var(--success)' : sevHigh > 0 ? 'var(--danger)' : 'var(--warning)';
 
-        leftHtml += '<div class="comp-card" style="margin-bottom:16px;border-left:4px solid ' + borderColor + ';">';
-        leftHtml += '<div class="comp-card-header" style="flex-direction:column;align-items:flex-start;gap:4px;">';
-        leftHtml += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">';
-        leftHtml += '<span style="font-size:14px;font-weight:700;">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
+        html += '<div class="comp-card" style="margin-bottom:16px;border-left:4px solid ' + borderColor + ';">';
+        html += '<div class="comp-card-header" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">';
+        html += '<span style="font-size:14px;font-weight:700;">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
         if (issueCount === 0) {
-          leftHtml += '<span style="color:var(--success);font-size:12px;font-weight:600;">&#10003; Clean</span>';
+          html += '<span style="color:var(--success);font-size:12px;font-weight:600;">&#10003; Clean</span>';
         } else {
-          leftHtml += '<span style="color:' + borderColor + ';font-size:12px;font-weight:600;">' + issueCount + ' issues</span>';
+          html += '<span style="color:' + borderColor + ';font-size:12px;font-weight:600;">' + issueCount + ' issues</span>';
         }
-        leftHtml += '</div>';
-        leftHtml += '<div style="font-size:11px;color:var(--text-secondary);word-break:break-all;font-family:monospace;">' + escapeHtml(page.url) + '</div>';
-        leftHtml += '</div>';
+        html += '</div>';
+        html += '<div style="font-size:11px;color:var(--text-secondary);word-break:break-all;font-family:monospace;">' + escapeHtml(page.url) + '</div>';
+        html += '</div>';
 
-        leftHtml += '<div class="comp-card-body">';
+        html += '<div class="comp-card-body">';
 
         if (page.error) {
-          leftHtml += '<div style="color:var(--danger);font-size:13px;padding:8px;background:var(--danger-bg);border-radius:6px;">Error: ' + escapeHtml(page.error) + '</div>';
+          html += '<div style="color:var(--danger);font-size:13px;padding:8px;background:var(--danger-bg);border-radius:6px;">Error: ' + escapeHtml(page.error) + '</div>';
         } else if (issueCount === 0) {
-          leftHtml += '<div style="color:var(--success);font-size:13px;padding:8px;background:var(--success-bg);border-radius:6px;">&#10003; No issues found on this page</div>';
+          html += '<div style="color:var(--success);font-size:13px;padding:8px;background:var(--success-bg);border-radius:6px;">&#10003; No issues found on this page</div>';
         } else {
-          leftHtml += '<div style="display:flex;gap:12px;margin-bottom:10px;">';
-          if (sevHigh > 0) leftHtml += '<span style="background:var(--danger-bg);color:var(--danger);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">High: ' + sevHigh + '</span>';
-          if (sevMed > 0) leftHtml += '<span style="background:var(--warning-bg);color:var(--warning);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Medium: ' + sevMed + '</span>';
-          if (sevLow > 0) leftHtml += '<span style="background:var(--success-bg);color:var(--success);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Low: ' + sevLow + '</span>';
-          leftHtml += '</div>';
+          html += '<div style="display:flex;gap:12px;margin-bottom:10px;">';
+          if (sevHigh > 0) html += '<span style="background:var(--danger-bg);color:var(--danger);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">High: ' + sevHigh + '</span>';
+          if (sevMed > 0) html += '<span style="background:var(--warning-bg);color:var(--warning);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Medium: ' + sevMed + '</span>';
+          if (sevLow > 0) html += '<span style="background:var(--success-bg);color:var(--success);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Low: ' + sevLow + '</span>';
+          html += '</div>';
 
-          leftHtml += '<div class="issue-list">';
+          html += '<div class="issue-list">';
           page.issues.forEach(issue => {
-            leftHtml += renderScanAllIssue(issue, idx);
+            html += renderScanAllIssue(issue, idx);
           });
-          leftHtml += '</div>';
+          html += '</div>';
         }
-        leftHtml += '</div></div>';
+        html += '</div></div>';
       });
 
-      // Right side: all screenshots in scrollable panel
-      let rightHtml = '<div style="display:flex;flex-direction:column;gap:12px;">';
-      pages.forEach((page, idx) => {
-        const pageLabel = getPageLabel(page.url);
-        const issueCount = page.issues ? page.issues.length : 0;
-        rightHtml += '<div id="ssCard-' + idx + '" style="border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border);">';
-        rightHtml += '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;">';
-        rightHtml += '<span style="color:var(--text);">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
-        if (issueCount > 0) rightHtml += '<span style="color:var(--danger);font-size:11px;">' + issueCount + ' issues</span>';
-        else rightHtml += '<span style="color:var(--success);font-size:11px;">Clean</span>';
-        rightHtml += '</div>';
-        if (page.screenshot) {
-          rightHtml += '<div class="preview-frame-wrap" id="pvWrap-' + idx + '" style="height:280px;padding:8px;background:#41808B;">';
-          rightHtml += '<img class="pv-img show" id="pvImg-' + idx + '" src="data:image/png;base64,' + page.screenshot + '" alt="' + escapeHtml(page.url) + '" />';
-          rightHtml += '<div class="pv-highlight" id="pvHighlight-' + idx + '"></div>';
-          rightHtml += '</div>';
-        } else {
-          rightHtml += '<div style="padding:40px;text-align:center;color:var(--text-secondary);font-size:12px;">No screenshot</div>';
-        }
-        rightHtml += '</div>';
-      });
-      rightHtml += '</div>';
+      dash.innerHTML = html;
 
-      dash.innerHTML =
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;height:calc(100vh - 160px);overflow:hidden;">' +
-          '<div style="overflow-y:auto;padding-right:8px;">' + leftHtml + '</div>' +
-          '<div style="overflow-y:auto;padding-left:8px;border-left:1px solid var(--border);">' + rightHtml + '</div>' +
-        '</div>';
-      dash.scrollTop = 0;
+      // Right panel: show first page with screenshot
+      const firstWithSS = pages.find(p => p.screenshot);
+      if (firstWithSS) {
+        const pvImg = $('scanAllPvImg');
+        pvImg.src = 'data:image/png;base64,' + firstWithSS.screenshot;
+        pvImg.classList.add('show');
+        $('scanAllPvSpinner').classList.remove('show');
+        ssTitle.textContent = getPageLabel(firstWithSS.url);
+        scanAllState._activePageIdx = pages.indexOf(firstWithSS);
+      } else {
+        ssTitle.textContent = '';
+      }
     }
 
     function renderScanAllIssue(issue, pageIdx) {
@@ -2113,6 +2591,26 @@
       return { x, y, w, h };
     }
 
+    // Shared helper: highlight a bbox overlay on a right-panel screenshot.
+    function highlightOnPanel(wrap, pvImg, hl, bbox) {
+      if (!bbox || !pvImg || pvImg.naturalWidth === 0) {
+        if (hl) hl.classList.remove('show');
+        return;
+      }
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const box = computeHighlightBox(wrap, pvImg, bbox);
+      if (!box) {
+        hl.classList.remove('show');
+        showToast('Element is not visible in the screenshot', 'info');
+        return;
+      }
+      hl.style.left = box.x + 'px';
+      hl.style.top = box.y + 'px';
+      hl.style.width = box.w + 'px';
+      hl.style.height = box.h + 'px';
+      hl.classList.add('show');
+    }
+
     // Highlight the element's bounding box on that page's screenshot.
     function highlightScanAllIssue(key, pageIdx, event) {
       if (event && event.target.closest('button')) return;
@@ -2123,29 +2621,32 @@
       const page = scanAllState.pages[pageIdx];
       const issue = page && page.issues.find(i => i._key === key);
       const bbox = issue && issue.bbox;
-      const pvImg = document.getElementById('pvImg-' + pageIdx);
-      const hl = document.getElementById('pvHighlight-' + pageIdx);
-      if (!issue || !bbox || !pvImg || pvImg.naturalWidth === 0) {
-        if (hl) hl.classList.remove('show');
-        if (issue && !pvImg) showToast('No screenshot available for this page', 'info');
-        return;
-      }
+      const pvImg = $('scanAllPvImg');
+      const hl = $('scanAllPvHighlight');
+      const wrap = $('scanAllPreviewWrap');
 
-      const wrap = document.getElementById('pvWrap-' + pageIdx);
-      wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-      const box = computeHighlightBox(wrap, pvImg, bbox);
-      if (!box) {
+      if (!page || !page.screenshot) {
         hl.classList.remove('show');
-        showToast('Element is not visible in the screenshot', 'info');
+        if (issue) showToast('No screenshot available for this page', 'info');
         return;
       }
 
-      hl.style.left = box.x + 'px';
-      hl.style.top = box.y + 'px';
-      hl.style.width = box.w + 'px';
-      hl.style.height = box.h + 'px';
-      hl.classList.add('show');
+      // Load the page's screenshot into the right panel if not already showing
+      if (scanAllState._activePageIdx !== pageIdx) {
+        pvImg.src = 'data:image/png;base64,' + page.screenshot;
+        pvImg.classList.add('show');
+        $('scanAllPvSpinner').classList.remove('show');
+        $('scanAllScreenshotTitle').textContent = getPageLabel(page.url);
+        scanAllState._activePageIdx = pageIdx;
+        // Wait for image to load before highlighting
+        pvImg.onload = () => {
+          pvImg.onload = null;
+          highlightOnPanel(wrap, pvImg, hl, bbox);
+        };
+        return;
+      }
+
+      highlightOnPanel(wrap, pvImg, hl, bbox);
     }
 
     async function verifyScanAllFix(page, issue) {
@@ -2245,10 +2746,362 @@
     }
 
     // ΓöÇΓöÇΓöÇ BINDINGS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    // FLOW TEST (BASIC UX)
+    const flowState = { data: null, selectedStep: 0 };
+    const flowDash = $('flowDashboard'), flowSummary = $('flowSummary');
+    const flowPvLog = $('flowLog'), flowLogBar = $('flowLogBar');
+
+    function appendFlowTestLog(evt) {
+      if (!flowPvLog) return;
+      const line = document.createElement('div');
+      line.className = 'log-line log-' + ((evt && evt.kind) || 'info');
+      line.innerHTML = '<span class="log-time">' + flowTime() + '</span>' +
+        '<span class="log-tag">' + escapeHtml((evt && evt.tag) || ((evt && evt.kind) || 'info').toUpperCase()) + '</span>' +
+        '<span class="log-msg">' + escapeHtml(evt && evt.message ? evt.message : '') + '</span>';
+      flowPvLog.appendChild(line);
+      flowPvLog.scrollTop = flowPvLog.scrollHeight;
+    }
+
+    function parseFlowSteps() {
+      const text = document.getElementById('flowSteps').value.trim();
+      if (!text) return [];
+      return text.split('\n').map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return null;
+        // Strict structured format: action | selector | value
+        const parts = trimmed.split('|').map(p => p.trim());
+        if (parts.length > 1) {
+          const action = (parts[0] || '').toLowerCase();
+          return { name: trimmed, action: action || 'wait', selector: parts[1] || '', value: parts[2] || '' };
+        }
+        return interpretNaturalStep(trimmed);
+      }).filter(s => s);
+    }
+
+    // Turns a plain-English instruction into a flow step (nl-* actions are
+    // resolved to real elements on the server).
+    function interpretNaturalStep(line) {
+      const lower = line.toLowerCase().trim();
+      let m;
+
+      if (m = lower.match(/^(?:search|look for|find|search for)\s+(.+)$/)) {
+        return { name: line, action: 'nl-search', query: m[1] };
+      }
+      if (m = lower.match(/^(?:click|tap|press|open|click on|click the)\s+(?:on\s+|the\s+)?(.+)$/)) {
+        return { name: line, action: 'nl-click', label: m[1] };
+      }
+      if (m = lower.match(/^(?:type|fill|enter|write)\s+(?:in\s+|into\s+|the\s+)?(.+?)(?:\s+(?:with|as|the value)\s+(.+))?$/)) {
+        return { name: line, action: 'nl-type', label: m[1], value: m[2] || '' };
+      }
+      if (lower.startsWith('wait') || lower.startsWith('sleep')) {
+        const ms = parseInt((lower.match(/\d+/) || [0])[0], 10);
+        return { name: line, action: 'wait', value: String(ms * 1000 || 1500) };
+      }
+      if (m = lower.match(/^(?:expect|verify|check|see|should (?:see|show|display)|make sure)\s+(?:that\s+|to\s+see\s+|the\s+)?(.+)$/)) {
+        return { name: line, action: 'expect-text', value: m[1] };
+      }
+      if (m = lower.match(/^(?:goto|go to|navigate to|open url)\s+(.+)$/)) {
+        return { name: line, action: 'goto', selector: m[1] };
+      }
+      if (/^https?:\/\//.test(lower)) {
+        return { name: line, action: 'goto', selector: line };
+      }
+      // Default: verify the instruction's content appears on the page.
+      return { name: line, action: 'expect-text', value: line };
+    }
+
+    async function runFlow() {
+      const flowStepsEl = document.getElementById('flowSteps');
+      let url = document.getElementById('flowUrl').value.trim();
+      if (!url) { showToast('Please enter a URL', 'warning'); return; }
+      if (!flowStepsEl.value.trim()) {
+        showToast('Please enter at least one flow action', 'warning');
+        flowStepsEl.style.borderColor = 'var(--danger)';
+        flowStepsEl.focus();
+        return;
+      }
+      flowStepsEl.style.borderColor = 'var(--border)';
+      if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'https://' + url; document.getElementById('flowUrl').value = url; }
+
+      const flowStatus = document.getElementById('flowStatus');
+      const flowRunBtn = document.getElementById('flowRunBtn');
+      const username = document.getElementById('flowUser').value.trim();
+      const password = document.getElementById('flowPass').value.trim();
+
+      flowRunBtn.disabled = true;
+      flowRunBtn.textContent = 'Running...';
+      flowStatus.style.display = 'block';
+      flowStatus.textContent = 'Loading ' + url + '...';
+      flowStatus.style.color = 'var(--text-secondary)';
+      flowState.data = null;
+      if (flowPvLog) {
+        flowLogBar.textContent = 'Running...';
+        flowPvLog.innerHTML = '<div class="file-log"><div class="log-line log-run"><span class="log-time">' + flowTime() + '</span><span class="log-tag">START</span><span class="log-msg">Running flow for ' + escapeHtml(url) + '</span></div></div>';
+      }
+
+      const body = { url };
+      if (username && password) { body.username = username; body.password = password; }
+      const steps = parseFlowSteps();
+      if (steps.length) body.steps = steps;
+
+      try {
+        const resp = await fetch('/flow?' + Date.now(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.error || 'HTTP ' + resp.status); }
+        const result = await resp.json();
+
+        if (result.requiresLogin) {
+          flowStatus.style.display = 'none';
+          flowDash.innerHTML = '<div class="empty-state"><h3>Login Required</h3><p>' + escapeHtml(result.message || '') + '</p></div>';
+          flowSummary.textContent = '';
+          appendFlowTestLog({ kind: 'warn', tag: 'LOGIN', message: result.message || 'Flow requires login' });
+          showToast('Flow requires login', 'warning');
+          return;
+        }
+
+        flowState.data = result;
+        flowSummary.textContent = result.title || result.url;
+        flowDash.innerHTML = renderFlowResults(result);
+        (result.steps || []).forEach((step, i) => {
+          const kind = step.status === 'pass' ? 'pass' : (step.status === 'fail' ? 'fail' : 'warn');
+          appendFlowTestLog({
+            kind: kind,
+            tag: 'STEP ' + (i + 1),
+            message: step.name + (step.selector ? ' [' + step.selector + ']' : '') + ' — ' + (step.detail || (kind === 'pass' ? 'OK' : '')) + (step.suggestion ? ' | ' + step.suggestion : '')
+          });
+        });
+        flowLogBar.textContent = result.title || 'Done';
+        flowStatus.style.display = 'none';
+        const s = result.summary || {};
+        appendFlowTestLog({ kind: 'run', tag: 'DONE', message: 'Flow complete: ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail' });
+        showToast('Flow complete: ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail', (s.failed || 0) ? 'warning' : 'success');
+      } catch (err) {
+        flowDash.innerHTML = '<div class="empty-state"><h3 style="color:var(--danger);">Flow Failed</h3><p>' + escapeHtml(err.message) + '</p></div>';
+        flowSummary.textContent = '';
+        appendFlowTestLog({ kind: 'fail', tag: 'ERROR', message: err.message });
+        showToast(err.message, 'error');
+      } finally {
+        if (flowPvLog && !flowLogBar.textContent) flowLogBar.textContent = 'Finished';
+        flowRunBtn.disabled = false;
+        flowRunBtn.textContent = 'Run Flow';
+      }
+    }
+
+    function renderFlowResults(result) {
+      const steps = result.steps || [];
+      const summary = result.summary || {};
+      let html =
+        '<div class="stats-row">' +
+          '<div class="stat-card total"><div class="num">' + summary.total + '</div><div class="label">Steps</div></div>' +
+          '<div class="stat-card fixed"><div class="num">' + summary.passed + '</div><div class="label">Passed</div></div>' +
+          '<div class="stat-card open"><div class="num">' + (summary.failed || 0) + '</div><div class="label">Failed</div></div>' +
+          '<div class="stat-card warning"><div class="num">' + (summary.warned || 0) + '</div><div class="label">Warned</div></div>' +
+        '</div>';
+      html += '<div class="issue-list">';
+      steps.forEach((step, i) => {
+        const color = step.status === 'pass' ? 'var(--success)' : (step.status === 'fail' ? 'var(--danger)' : 'var(--warning)');
+        const badge = step.status === 'pass' ? 'Pass' : (step.status === 'fail' ? 'Fail' : 'Warn');
+        const sel = step.selector ? '<span>' + escapeHtml(step.selector) + '</span>' : '';
+        html += '<div class="issue-item severity-' + (step.status === 'fail' ? 'high' : (step.status === 'warn' ? 'medium' : 'low')) + ' clickable' + (flowState.selectedStep === i ? ' selected' : '') + '" onclick="selectFlowStep(' + i + ', event)">' +
+          '<div class="issue-header"><span class="issue-title">' + escapeHtml(step.name) + '</span>' +
+          '<span class="issue-severity" style="background:rgba(0,0,0,0.06);color:' + color + ';">' + badge + '</span></div>' +
+          '<div class="issue-desc">' + escapeHtml(step.detail || '') + '</div>' +
+          (step.suggestion ? '<div class="issue-suggestion">' + escapeHtml(step.suggestion) + '</div>' : '') +
+          '<div class="issue-category"><span>UX Flow Step ' + (i + 1) + '</span>' + sel + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+      return html;
+    }
+
+    function selectFlowStep(index, event) {
+      if (event && event.target.closest('button')) return;
+      if (!flowState.data) return;
+      document.querySelectorAll('#flowDashboard .issue-item').forEach(el => el.classList.remove('selected'));
+      if (event && event.currentTarget) event.currentTarget.classList.add('selected');
+      const step = (flowState.data.steps || [])[index];
+      if (!step) return;
+      const kind = step.status === 'pass' ? 'pass' : (step.status === 'fail' ? 'fail' : 'warn');
+      appendFlowTestLog({
+        kind: kind,
+        tag: 'STEP ' + (index + 1),
+        message: step.name + (step.selector ? ' [' + step.selector + ']' : '') + ' — ' + (step.detail || '') + (step.suggestion ? ' | ' + step.suggestion : '')
+      });
+    }
+
+    // ALL FLOWS
+    const allFlowsState = { data: null };
+    const afDash = $('allFlowsDashboard'), afSummary = $('allFlowsSummary');
+    const afLogWrap = $('allFlowsLog'), afLogBar = $('allFlowsLogBar');
+
+    function flowTime() {
+      return new Date().toLocaleTimeString([], { hour12: false });
+    }
+
+    function appendFlowLog(evt) {
+      if (!afLogWrap) return;
+      const line = document.createElement('div');
+      line.className = 'log-line log-' + ((evt && evt.kind) || 'info');
+      line.innerHTML = '<span class="log-time">' + flowTime() + '</span>' +
+        '<span class="log-tag">' + escapeHtml((evt && evt.tag) || ((evt && evt.kind) || 'info').toUpperCase()) + '</span>' +
+        '<span class="log-msg">' + escapeHtml(evt && evt.message ? evt.message : '') + '</span>';
+      afLogWrap.appendChild(line);
+      afLogWrap.scrollTop = afLogWrap.scrollHeight;
+    }
+
+    async function runAllFlows() {
+      let url = document.getElementById('allFlowsUrl').value.trim();
+      if (!url) { showToast('Please enter your app URL', 'warning'); return; }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'https://' + url; document.getElementById('allFlowsUrl').value = url; }
+
+      const afStatus = document.getElementById('allFlowsStatus');
+      const afRunBtn = document.getElementById('allFlowsRunBtn');
+      const username = document.getElementById('allFlowsUser').value.trim();
+      const password = document.getElementById('allFlowsPass').value.trim();
+
+      afRunBtn.disabled = true;
+      afRunBtn.textContent = 'Running...';
+      afStatus.style.display = 'block';
+      afStatus.textContent = 'Signing in and crawling ' + url + '...';
+      afStatus.style.color = 'var(--text-secondary)';
+      allFlowsState.data = null;
+      afLogBar.textContent = 'Running...';
+      afLogWrap.innerHTML = '';
+      appendFlowLog({ kind: 'run', tag: 'START', message: 'Running all flows for ' + url });
+
+      const body = { url };
+      if (username && password) { body.username = username; body.password = password; }
+
+      try {
+        const resp = await fetch('/all-flows?' + Date.now(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const ct = (resp.headers.get('content-type') || '').toLowerCase();
+
+        if (!resp.ok) {
+          let msg = 'HTTP ' + resp.status;
+          if (ct.includes('json')) {
+            const err = await resp.json().catch(() => ({}));
+            msg = err.error || msg;
+          } else if (ct.includes('ndjson')) {
+            const text = await resp.text();
+            const lines = text.trim().split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try { const ev = JSON.parse(lines[i]); if (ev && ev.error) { msg = ev.error; break; } } catch (e) {}
+            }
+          }
+          throw new Error(msg);
+        }
+
+        let result = null;
+        if (ct.includes('ndjson')) {
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            let nl;
+            while ((nl = buf.indexOf('\n')) !== -1) {
+              const lineStr = buf.slice(0, nl).trim();
+              buf = buf.slice(nl + 1);
+              if (!lineStr) continue;
+              let evt;
+              try { evt = JSON.parse(lineStr); } catch (e) { continue; }
+              if (!evt) continue;
+              if (evt.error) throw new Error(evt.error);
+              if (evt.type === 'progress') { appendFlowLog(evt); continue; }
+              result = evt;
+            }
+          }
+          if (!result) throw new Error('All-flows run ended without a result.');
+        } else {
+          result = await resp.json();
+        }
+
+        if (result.requiresLogin) {
+          afStatus.style.display = 'none';
+          afDash.innerHTML = '<div class="empty-state"><h3>' + (result.oauthBlocked ? 'SSO/OAuth Required' : 'Login Required') + '</h3><p>' + escapeHtml(result.message || '') + '</p></div>';
+          afSummary.textContent = '';
+          showToast('All Flows requires login', 'warning');
+          return;
+        }
+
+        allFlowsState.data = result;
+        afSummary.textContent = result.url;
+        afDash.innerHTML = renderAllFlows(result);
+        afStatus.style.display = 'none';
+        const s = result.summary || {};
+        appendFlowLog({ kind: 'pass', tag: 'DONE', message: 'All flows complete — ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail, ' + (s.warned || 0) + ' warn across ' + (s.pages || 0) + ' pages.' });
+        afLogBar.textContent = 'Finished ' + flowTime();
+        showToast('All flows done: ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail, ' + (s.warned || 0) + ' warn (' + (s.pages || 0) + ' pages)', (s.failed || 0) ? 'warning' : 'success');
+      } catch (err) {
+        appendFlowLog({ kind: 'fail', tag: 'FAIL', message: err.message });
+        if (!allFlowsState.data) {
+          afDash.innerHTML = '<div class="empty-state"><h3 style="color:var(--danger);">All Flows Failed</h3><p>' + escapeHtml(err.message) + '</p></div>';
+        }
+        showToast(err.message, 'error');
+      } finally {
+        afRunBtn.disabled = false;
+        afRunBtn.textContent = 'Run All Flows';
+      }
+    }
+
+    // Short, plain-English explanation of what each journey actually checked.
+    function journeyWhatChecked(name) {
+      const lower = (name || '').toLowerCase();
+      if (lower.includes('login') || lower.includes('sign')) return 'Checks the app still reaches its pages after signing in, and that no page traps you back on a login screen.';
+      if (lower.includes('navigation')) return 'Checks that every menu/link opens a real page (no broken links or blank pages).';
+      if (lower.includes('search')) return 'Checks there is a search box and that typing a query does not crash the app.';
+      if (lower.includes('form')) return 'Checks a form can be submitted and that the page reacts (success or error message) afterwards.';
+      if (lower.includes('detail') || lower.includes('record')) return 'Checks a list row / detail link can be clicked and opens a record.';
+      return 'Checks this user journey can be completed without major blockers.';
+    }
+
+    function renderAllFlows(result) {
+      const journeys = result.journeys || [];
+      const summary = result.summary || {};
+      let html =
+        '<div class="stats-row">' +
+          '<div class="stat-card total"><div class="num">' + summary.pages + '</div><div class="label">Pages</div></div>' +
+          '<div class="stat-card fixed"><div class="num">' + summary.passed + '</div><div class="label">Journeys Pass</div></div>' +
+          '<div class="stat-card open"><div class="num">' + (summary.failed || 0) + '</div><div class="label">Journeys Fail</div></div>' +
+          '<div class="stat-card warning"><div class="num">' + (summary.warned || 0) + '</div><div class="label">Journeys Warn</div></div>' +
+        '</div>';
+      html += '<div class="issue-list">';
+      journeys.forEach((j, idx) => {
+        const overall = j.steps.some(s => s.status === 'fail') ? 'fail' : (j.steps.every(s => s.status === 'pass') ? 'pass' : 'warn');
+        const color = overall === 'pass' ? 'var(--success)' : (overall === 'fail' ? 'var(--danger)' : 'var(--warning)');
+        const badge = overall.toUpperCase();
+        html += '<div class="issue-item severity-' + (overall === 'fail' ? 'high' : (overall === 'warn' ? 'medium' : 'low')) + ' clickable' + (allFlowsState.selected === idx ? ' selected' : '') + '" onclick="selectJourney(' + idx + ', event, -1)">' +
+          '<div class="issue-header"><span class="issue-title">' + escapeHtml(j.name) + '</span>' +
+          '<span class="issue-severity" style="background:rgba(0,0,0,0.06);color:' + color + ';">' + badge + '</span></div>' +
+          '<div class="issue-desc" style="margin-bottom:6px;">' + escapeHtml(j.url || '') + '</div>' +
+          '<div class="issue-explanation"><strong>What we checked:</strong> ' + escapeHtml(journeyWhatChecked(j.name)) + '</div>';
+        j.steps.forEach((s, si) => {
+          const sc = s.status === 'pass' ? 'var(--success)' : (s.status === 'fail' ? 'var(--danger)' : 'var(--warning)');
+          html += '<div class="issue-explanation clickable' + (allFlowsState.selected === idx && allFlowsState.step === si ? ' selected' : '') + '" style="border-left:3px solid ' + sc + ';cursor:pointer;" onclick="selectJourney(' + idx + ', event, ' + si + ')">' +
+            '<strong>' + escapeHtml(s.name) + ' (' + escapeHtml(s.status) + ')</strong> — ' + escapeHtml(s.detail || '') + '</div>';
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+      return html;
+    }
+
+    function selectJourney(index, event, stepIndex) {
+      if (event && event.target.closest('button')) return;
+      if (!allFlowsState.data) return;
+      document.querySelectorAll('#allFlowsDashboard .selected').forEach(el => el.classList.remove('selected'));
+      if (event && event.currentTarget) event.currentTarget.classList.add('selected');
+      allFlowsState.selected = index;
+      allFlowsState.step = stepIndex;
+    }
+
     $('analyzeBtn').addEventListener('click', runAnalysis);
     $('scanAllBtn').addEventListener('click', scanAllPages);
     $('compareBtn').addEventListener('click', compareUrls);
     document.getElementById('ssCompareBtn').addEventListener('click', compareScreenshots);
+    document.getElementById('flowRunBtn').addEventListener('click', runFlow);
+    document.getElementById('allFlowsRunBtn').addEventListener('click', runAllFlows);
     urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
     document.getElementById('scanAllUrl').addEventListener('keydown', e => { if (e.key === 'Enter') scanAllPages(); });
     document.getElementById('compareUrls').addEventListener('keydown', e => {

@@ -19,6 +19,9 @@ Thumbs.db
 # VS Code settings
 .vscode/
 
+# Local browser profile
+.browser-profile/
+
 # Temporary files
 *.tmp
 *.temp
@@ -26,3 +29,11 @@ Thumbs.db
 # Server output / debug logs
 server_out.txt
 server_err.txt
+server_err.log
+
+# OpenCode backups / cache
+.opencode-backup/
+
+# Temp / debug files
+temp_debug.png
+dismissed-issues.json

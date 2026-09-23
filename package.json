@@ -1,7 +1,7 @@
 {
   "name": "ui-testing-agent",
   "version": "1.0.0",
-  "description": "AI UI Testing Agent - analyzes web apps for UI issues",
+  "description": "AI UI/UX Testing Agent - analyzes web apps for UI/UX issues",
   "main": "server.js",
   "dependencies": {
     "cors": "^2.8.5",

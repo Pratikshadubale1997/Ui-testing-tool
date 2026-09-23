@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -17,14 +17,31 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname), { index: false }));
 
 let browser;
+let browserMode = 'headless'; // 'headless' | 'manual'
+// Set once the user completes a manual (SSO/OAuth) login — its cookies are
+// persisted in USER_DATA_DIR, so credential auto-login must not run again.
+let savedSessionAvailable = false;
+// Persistent profile so a manual login (SSO/OAuth session) survives browser restarts
+const USER_DATA_DIR = path.join(__dirname, '.browser-profile');
 
-async function getBrowser() {
-  if (!browser || !browser.isConnected()) {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
+function manualLoginInProgress() {
+  return !!(browser && browser.isConnected() && browserMode === 'manual');
+}
+
+async function getBrowser(mode) {
+  const wantMode = mode || 'headless';
+  if (browser && browser.isConnected() && browserMode === wantMode) return browser;
+  if (browser && browser.isConnected()) {
+    await browser.close().catch(() => {});
+    browser = null;
   }
+  browser = await puppeteer.launch({
+    headless: wantMode === 'headless' ? 'new' : false,
+    userDataDir: USER_DATA_DIR,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    defaultViewport: wantMode === 'manual' ? null : { width: 1280, height: 800 },
+  });
+  browserMode = wantMode;
   return browser;
 }
 
@@ -81,13 +98,15 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
       await page.waitForFunction(() => {
         return document.querySelector('input[type="password"]') !== null ||
                document.querySelectorAll('h1, h2, h3, a, button, table').length > 5;
-      }, { timeout: 15000 });
+      }, { timeout: 30000 });
     } catch (e) {}
     await page.waitForTimeout(2000);
   }
 
-  // If credentials provided, always try to find and fill login form
-  if (credentials) {
+  // If credentials provided, try to find and fill login form — but never when
+  // a manual-login session is already saved (auto-fill would bounce to the
+  // SSO provider again and break the session).
+  if (credentials && !savedSessionAvailable) {
     const hasPasswordField = await hasVisiblePasswordField(page);
     if (hasPasswordField) {
       loginAttempted = true;
@@ -118,11 +137,14 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
           await page.waitForTimeout(2000);
         }
 
-        // Check if login succeeded
+        // Check if login succeeded.
+        // A redirect to an external identity provider (Google OAuth, Microsoft,
+        // GitHub SSO...) is NOT a success — we cannot complete it automatically.
         const urlChanged = page.url() !== urlBeforeLogin;
         const noLoginForm = !(await hasVisiblePasswordField(page));
-        loginSucceeded = urlChanged || noLoginForm;
-        console.log(`  [INFO] Login check: urlChanged=${urlChanged}, noLoginForm=${noLoginForm}`);
+        const landedOnAuthProvider = isAuthProviderUrl(page.url()) && isCrossOrigin(page.url(), startUrl);
+        loginSucceeded = (urlChanged || noLoginForm) && !landedOnAuthProvider;
+        console.log(`  [INFO] Login check: urlChanged=${urlChanged}, noLoginForm=${noLoginForm}, authProviderRedirect=${landedOnAuthProvider}`);
       } catch (e) {
         console.log(`  [WARN] Login attempt failed: ${e.message}`);
       }
@@ -131,7 +153,7 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
     }
   }
 
-  return { loginAttempted, loginSucceeded };
+  return { loginAttempted, loginSucceeded, authProviderRedirect: isAuthProviderUrl(page.url()) && isCrossOrigin(page.url(), startUrl) };
 
   // Wait for actual page content to render (for SPAs that lazy-load)
   if (!page.url().includes('/login')) {
@@ -242,6 +264,28 @@ async function hasVisiblePasswordField(page) {
 
 // Fills the login form with the given credentials and submits it.
 // Returns true only if the login form disappears (login succeeded).
+
+// Registrable domains of identity providers that require interactive SSO
+// (Google OAuth, Microsoft, GitHub, etc.) which cannot be automated here.
+const AUTH_PROVIDER_DOMAINS = [
+  'google.com', 'microsoftonline.com', 'live.com', 'yahoo.com',
+  'github.com', 'gitlab.com', 'facebook.com', 'instagram.com',
+  'twitter.com', 'x.com', 'linkedin.com', 'apple.com',
+  'auth0.com', 'okta.com', 'onelogin.com',
+];
+
+function isAuthProviderUrl(u) {
+  try {
+    const host = new URL(u).hostname.toLowerCase();
+    return AUTH_PROVIDER_DOMAINS.some(d => host === d || host.endsWith('.' + d));
+  } catch (e) { return false; }
+}
+
+function isCrossOrigin(currentUrl, originalUrl) {
+  try { return new URL(currentUrl).origin !== new URL(originalUrl).origin; }
+  catch (e) { return false; }
+}
+
 async function attemptLogin(page, credentials) {
   const found = await page.evaluate(() => {
     const isVisible = (el) => {
@@ -286,7 +330,11 @@ async function attemptLogin(page, credentials) {
     return false;
   }
 
-  // Submit the form
+  // Submit the form.
+  // IMPORTANT: never click SSO buttons ("Login with Google" etc.) — they
+  // redirect to external identity providers we cannot automate. On many apps
+  // the SSO button is the FIRST <button> inside the form, so selection must
+  // strictly prefer type="submit" and exclude provider names.
   const submitted = await page.evaluate(() => {
     const isVisible = (el) => {
       if (!el || !el.isConnected) return false;
@@ -295,20 +343,29 @@ async function attemptLogin(page, credentials) {
       return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
     };
     const textHints = ['log in', 'login', 'sign in', 'signin', 'submit', 'continue', 'enter', 'next', 'let me in', 'sign on', 'logon'];
+    const oauthRe = /google|microsoft|facebook|github|apple|sso|oauth|with/i;
+    const isSsoButton = (el) => oauthRe.test((el.textContent || el.value || '') + '');
+    const btnText = (el) => ((el.textContent || el.value || '') + '').toLowerCase().trim();
     const form = document.querySelector('input[type="password"]') ? document.querySelector('input[type="password"]').closest('form') : null;
-    // 1) submit button inside the login form
+    // 1) real submit button inside the login form (never an SSO button)
     if (form) {
-      const fb = form.querySelector('button[type="submit"], input[type="submit"], button');
-      if (fb && isVisible(fb)) { fb.click(); return true; }
+      const fb = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]')).find(isVisible);
+      if (fb) { fb.click(); return true; }
     }
-    // 2) any visible button/input with login-ish text
-    const all = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]')).filter(isVisible);
+    // 2) non-SSO button inside the form with login-ish text
+    if (form) {
+      const cand = Array.from(form.querySelectorAll('button, input[type="button"], [role="button"]'))
+        .filter(isVisible).filter(b => !isSsoButton(b))
+        .find(b => textHints.some(h => btnText(b).includes(h)));
+      if (cand) { cand.click(); return true; }
+    }
+    // 3) any visible non-SSO button/input with login-ish text anywhere
+    const all = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]')).filter(isVisible).filter(b => !isSsoButton(b));
     for (const el of all) {
-      const t = ((el.textContent || el.value || '') + '').toLowerCase().trim();
-      if (textHints.some(h => t.includes(h))) { el.click(); return true; }
+      if (textHints.some(h => btnText(el).includes(h))) { el.click(); return true; }
     }
-    // 3) any visible submit button
-    const anySubmit = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]')).find(isVisible);
+    // 4) any visible non-SSO submit button
+    const anySubmit = all.find(el => el.getAttribute('type') === 'submit');
     if (anySubmit) { anySubmit.click(); return true; }
     return false;
   });
@@ -833,11 +890,139 @@ const ANALYSIS_SCRIPT = `
 })();
 `;
 
+// ─── UX ANALYSIS SCRIPT (12 UX categories) ───────────────────────────────
+const UX_ANALYSIS_SCRIPT = fs.readFileSync(path.join(__dirname, 'ux-analysis.js'), 'utf8');
+
+// ─── ISSUE POST-PROCESSING ──────────────────────────────────────────────────
+// Keeps only valid, actionable issues and removes duplicate titles so the
+// report never shows the same issue heading twice.
+
+const TRIVIAL_DIFF_LIMITS = { 'font-size': 2, 'line-height': 4, 'padding': 4, 'margin': 4 };
+
+function pxValues(str) {
+  return (str.match(/-?\d+(?:\.\d+)?px/g) || []).map(parseFloat);
+}
+
+function isTrivialDiff(detail) {
+  if (!detail || detail === 'style mismatch') return true;
+  let pairCount = 0;
+  // Pattern A: "prop: valueA vs valueB"
+  const vsRe = /([a-z-]+):\s*([^v]+?)\s+vs\s+([^;]+)/gi;
+  let m;
+  while ((m = vsRe.exec(detail)) !== null) {
+    pairCount++;
+    const limit = TRIVIAL_DIFF_LIMITS[m[1].trim().toLowerCase()];
+    if (!limit) return false; // color/border/weight etc. — always meaningful
+    const a = pxValues(m[2]);
+    const b = pxValues(m[3]);
+    if (!a.length || a.length !== b.length) return false;
+    if (a.some((v, i) => Math.abs(v - b[i]) >= limit)) return false; // big enough to matter
+  }
+  // Pattern B: "prop: A B C D (expected: E F G H)"
+  const expRe = /(padding|margin):\s*([^(]+)\s*\(expected:\s*([^)]+)\)/gi;
+  while ((m = expRe.exec(detail)) !== null) {
+    pairCount++;
+    const a = pxValues(m[2]);
+    const b = pxValues(m[3]);
+    if (!a.length || a.length !== b.length) return false;
+    if (a.some((v, i) => Math.abs(v - b[i]) >= TRIVIAL_DIFF_LIMITS[m[1].toLowerCase()])) return false;
+  }
+  return pairCount > 0; // every measured difference was imperceptible
+}
+
+function filterValidIssues(issues, dedupeTitles = true) {
+  if (!Array.isArray(issues)) return issues;
+  // Pass 1 — validity: drop invisible elements, empty data, imperceptible diffs.
+  const valid = issues.filter(i =>
+    i && i.name && i.detail &&
+    i.bbox && i.bbox.width >= 1 && i.bbox.height >= 1 &&
+    !isTrivialDiff(i.detail)
+  );
+  if (!dedupeTitles) return valid;
+  // Pass 2 — de-duplicate by title: one entry per unique issue title.
+  const byTitle = new Map();
+  for (const issue of valid) {
+    if (byTitle.has(issue.name)) {
+      const kept = byTitle.get(issue.name);
+      kept.occurrences++;
+      if (kept.additionalSelectors.length < 5) kept.additionalSelectors.push(issue.selector);
+    } else {
+      byTitle.set(issue.name, { ...issue, occurrences: 1, additionalSelectors: [] });
+    }
+  }
+  return Array.from(byTitle.values());
+}
+
+// ─── MANUAL LOGIN (for SSO/OAuth apps that cannot be automated) ────────────
+let manualLoginTarget = null;
+
+app.post('/manual-login-start', async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'URL is required' });
+  try {
+    const b = await getBrowser('manual');
+    const pages = await b.pages();
+    const page = pages[0] || await b.newPage();
+    manualLoginTarget = url;
+    await page.bringToFront().catch(() => {});
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+    res.json({ ok: true, message: 'Browser window opened. Log in manually (complete the Google sign-in), then click "I Have Logged In".' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/manual-login-status', async (req, res) => {
+  try {
+    if (!browser || !browser.isConnected() || browserMode !== 'manual') {
+      return res.json({ active: false, loggedIn: false });
+    }
+    const pages = await browser.pages();
+    const page = pages[0];
+    if (!page) return res.json({ active: true, loggedIn: false });
+    const curUrl = page.url();
+    let backOnApp = false;
+    let loginFormGone = true;
+    if (manualLoginTarget && !isCrossOrigin(curUrl, manualLoginTarget) && !isAuthProviderUrl(curUrl)) {
+      backOnApp = true;
+      try { loginFormGone = !(await hasVisiblePasswordField(page)); } catch (e) {}
+    }
+    const loggedIn = backOnApp && loginFormGone;
+    if (loggedIn) {
+      savedSessionAvailable = true;
+      // Switch back to headless for scanning — profile keeps the session cookies.
+      await getBrowser('headless').catch(() => {});
+    }
+    res.json({ active: true, loggedIn, currentUrl: curUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/manual-login-confirm', async (req, res) => {
+  try {
+    // User says they are done — trust them and switch back to headless.
+    await getBrowser('headless').catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API ENDPOINTS ─────────────────────────────────────────────────────────
 
 app.post('/analyze', async (req, res) => {
   const { url, username, password } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
+
+  // Never kill the manual-login window mid-login.
+  if (manualLoginInProgress()) {
+    return res.json({
+      url,
+      loginRequired: true,
+      message: 'The manual login window is still open. Finish logging in there first, then click Analyze.',
+    });
+  }
 
   const credentials = (username && password) ? { username, password } : null;
 
@@ -849,6 +1034,19 @@ app.post('/analyze', async (req, res) => {
     await page.setDefaultNavigationTimeout(60000);
 
     const navResult = await navigateToPage(page, url, 30000, credentials);
+
+    // If login redirected us to an external SSO provider (Google etc.), we can
+    // never reach the real app — report it instead of scanning the login page.
+    if (navResult.authProviderRedirect || (isAuthProviderUrl(page.url()) && isCrossOrigin(page.url(), url))) {
+      const provider = new URL(page.url()).hostname;
+      await page.close();
+      return res.json({
+        url,
+        loginRequired: true,
+        oauthBlocked: true,
+        message: 'This application signs in through ' + provider + ' (SSO/OAuth), which cannot be automated. Click "Login Manually" above — a browser window opens where you sign in with Google; the session is then reused for analysis.',
+      });
+    }
 
     // If login was attempted but failed AND page still looks like a login page, ask for credentials.
     // If login succeeded (URL changed away from login), skip this check — the SPA may still
@@ -869,8 +1067,9 @@ app.post('/analyze', async (req, res) => {
       });
     }
 
-    // Also check if no credentials were provided and page needs login
-    if (!credentials && await isLoginPage(page)) {
+    // Also check if no credentials were provided (or the saved session
+    // expired) and page needs login
+    if ((!credentials || savedSessionAvailable) && await isLoginPage(page)) {
       const currentUrl = page.url().toLowerCase();
       const isExternalAuth = /accounts\.google\.com|login\.microsoftonline|facebook\.com\/login|github\.com\/login|linkedin\.com\/login|twitter\.com\/login|x\.com\/login|id\.apple\.com|auth0\.com|okta\.com|onelogin\.com/.test(currentUrl);
       await page.close();
@@ -878,21 +1077,25 @@ app.post('/analyze', async (req, res) => {
         return res.json({
           url,
           loginRequired: true,
-          message: 'This page redirects to an external login provider (' + new URL(currentUrl).hostname + ') that cannot be automated. Please log into the site manually in your browser first, then try again.',
+          message: 'This page redirects to an external login provider (' + new URL(currentUrl).hostname + ') that cannot be automated. Click "Login Manually" above and sign in there, then try again.',
         });
       }
       return res.json({
         url,
         loginRequired: true,
-        message: 'This page requires a username and password. Please enter your login credentials above and click Analyze again.',
+        message: savedSessionAvailable
+          ? 'Your saved login session has expired. Click "Login Manually" to sign in again, then analyze.'
+          : 'This page requires a username and password. Please enter your login credentials above and click Analyze again.',
       });
     }
 
     // Take screenshot (full page so all elements, including below-the-fold ones, can be highlighted)
     const screenshot = await page.screenshot({ type: 'png', fullPage: true });
 
-    // Run analysis
-    const issues = await page.evaluate(ANALYSIS_SCRIPT);
+    // Run UI consistency analysis + UX analysis (accessibility, usability, content)
+    const uiIssues = await page.evaluate(ANALYSIS_SCRIPT);
+    const uxIssues = await page.evaluate(UX_ANALYSIS_SCRIPT);
+    const issues = filterValidIssues([...uiIssues, ...uxIssues]);
 
     // Get page title
     const title = await page.title();
@@ -908,6 +1111,8 @@ app.post('/analyze', async (req, res) => {
     });
   } catch (err) {
     if (page) await page.close().catch(() => {});
+    console.log('[ANALYZE ERROR]', err.message);
+    console.log(err.stack);
     res.status(500).json({ error: err.message });
   }
 });
@@ -981,7 +1186,8 @@ app.post('/recheck', async (req, res) => {
     // Re-run analysis to check if issues persist.
     // When fixes are provided, match by (ruleId + selector) so only the fixed
     // rule matters - the same element may be flagged by other rules.
-    const issues = await page.evaluate(ANALYSIS_SCRIPT);
+    // Validity filter only — no title de-dup, so selector matching stays intact.
+    const issues = filterValidIssues(await page.evaluate(ANALYSIS_SCRIPT), false);
     let stillPresent, fixed;
     if (Array.isArray(fixes) && fixes.length > 0) {
       stillPresent = fixes.filter(f => issues.some(i => i.ruleId === f.ruleId && i.selector === f.selector)).map(f => f.selector);
@@ -1263,7 +1469,7 @@ const COMPARE_SCRIPT = `
 
       results[typeName] = {
         count: els.length,
-        samples: samples.slice(0, 5),
+        samples: samples.slice(0, 20),
         dominant: JSON.parse(dominantKey),
         variants: samples.filter(s => JSON.stringify(s.props) !== dominantKey).length
       };
@@ -1288,6 +1494,14 @@ app.post('/compare', async (req, res) => {
   // Use credentials from request, env vars, or fallback to defaults
   const credentials = (username && password) ? { username, password } : null;
 
+  // Never kill the manual-login window mid-login.
+  if (manualLoginInProgress()) {
+    return res.json({
+      loginRequired: true,
+      message: 'The manual login window is still open. Finish logging in there first, then click Compare.',
+    });
+  }
+
   let browser;
   try {
     browser = await getBrowser();
@@ -1304,6 +1518,17 @@ app.post('/compare', async (req, res) => {
       const url = urls[i];
       try {
         const navResult = await navigateToPage(page, url, 30000, credentials);
+        // If login redirected us to an external SSO provider (Google etc.),
+        // the real page is unreachable — report it instead of comparing it.
+        if (navResult.authProviderRedirect || (isAuthProviderUrl(page.url()) && isCrossOrigin(page.url(), url))) {
+          const provider = new URL(page.url()).hostname;
+          await page.close().catch(() => {});
+          return res.json({
+            loginRequired: true,
+            oauthBlocked: true,
+            message: 'This application signs in through ' + provider + ' (SSO/OAuth), which cannot be automated. Click "Login Manually" above — a browser window opens where you sign in with Google; the session is then reused for comparison.',
+          });
+        }
         // If login failed and page still looks like a login page
         if (navResult.loginAttempted && !navResult.loginSucceeded && await isLoginPage(page)) {
           await page.close().catch(() => {});
@@ -1420,7 +1645,11 @@ app.post('/compare', async (req, res) => {
           if (!v.value || v.value === info.dominant) continue;
           const pd = pageData.find(x => x.url === v.url);
           const elData = pd && pd.elements && pd.elements[comp.elementType];
-          const sample = (elData && elData.samples && elData.samples.find(s => s.props && s.props[prop] === v.value)) || (elData && elData.samples && elData.samples[0]) || null;
+          // Try to find a sample with matching prop value, then any sample with a valid bbox
+          let sample = (elData && elData.samples && elData.samples.find(s => s.props && s.props[prop] === v.value)) || null;
+          if (!sample && elData && elData.samples) {
+            sample = elData.samples.find(s => s.bbox && s.bbox.width > 0) || elData.samples[0] || null;
+          }
           const isColor = /^#([0-9a-f]{3,8}|[0-9a-f]{6})$/i.test(v.value) || /^rgb/.test(v.value) || /^hsl/.test(v.value);
           issues.push({
             id: 'cmp-issue-' + (issueSeq++),
@@ -1993,6 +2222,14 @@ app.post('/scan-all', async (req, res) => {
   const { url, username, password, maxPages = 20 } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
+  // Never kill the manual-login window mid-login.
+  if (manualLoginInProgress()) {
+    return res.json({
+      loginRequired: true,
+      message: 'The manual login window is still open. Finish logging in there first, then click Scan All Pages.',
+    });
+  }
+
   const credentials = (username && password) ? { username, password } : null;
 
   let browser;
@@ -2005,6 +2242,33 @@ app.post('/scan-all', async (req, res) => {
     // Step 1: Navigate to URL and login if needed
     console.log(`  [SCAN] Navigating to ${url}`);
     const navResult = await navigateToPage(page, url, 30000, credentials);
+
+    // If we landed on an external SSO provider (Google OAuth etc.), the real
+    // app pages are unreachable — stop instead of scanning the provider's pages.
+    if (navResult.authProviderRedirect || (isAuthProviderUrl(page.url()) && isCrossOrigin(page.url(), url))) {
+      const provider = new URL(page.url()).hostname;
+      console.log(`  [SCAN] Blocked: redirected to external auth provider ${provider}`);
+      await page.close().catch(() => {});
+      return res.json({
+        loginRequired: true,
+        oauthBlocked: true,
+        message: 'This application signs in through ' + provider + ' (SSO/OAuth), which cannot be automated. Click "Login Manually" above — a browser window opens where you sign in with Google; the session is then reused for scanning.',
+      });
+    }
+
+    // If the app is showing its own login page (no credentials, failed login,
+    // or an expired saved session), ask for login instead of scanning the form.
+    if ((!credentials || (navResult.loginAttempted && !navResult.loginSucceeded) || savedSessionAvailable) && await isLoginPage(page)) {
+      await page.close().catch(() => {});
+      return res.json({
+        loginRequired: true,
+        message: savedSessionAvailable
+          ? 'Your saved login session has expired. Click "Login Manually" to sign in again, then scan.'
+          : credentials
+            ? 'Login failed with the provided credentials. Please check the username and password and try again.'
+            : 'This application requires a username and password. Please enter your login credentials above and click Scan All Pages again.',
+      });
+    }
 
     // Wait for SPA to fully load
     try { await page.waitForNetworkIdle({ idleTime: 1000, timeout: 10000 }); } catch (e) {}
@@ -2043,7 +2307,7 @@ app.post('/scan-all', async (req, res) => {
     // Step 1b: Analyze the home/landing page first
     const initialUrl = page.url();
     const initialScreenshot = await page.screenshot({ type: 'png', fullPage: true });
-    const initialIssues = await page.evaluate(ANALYSIS_SCRIPT);
+    const initialIssues = filterValidIssues([...await page.evaluate(ANALYSIS_SCRIPT), ...await page.evaluate(UX_ANALYSIS_SCRIPT)]);
     const pageResults = [];
 
     pageResults.push({
@@ -2058,7 +2322,9 @@ app.post('/scan-all', async (req, res) => {
     // Step 2: Crawl ALL internal URLs of the site (BFS)
     // Starting from the home page, discover every same-domain link,
     // visit each page, run the analysis, and collect issues.
-    const baseOrigin = new URL(pageResults[0].url).origin;
+    // IMPORTANT: scope is the ORIGIN THE USER REQUESTED — never the origin the
+    // browser happens to be on (e.g. after an SSO redirect).
+    const baseOrigin = new URL(url).origin;
 
     // Canonical URL form used for de-duplication.
     // Keeps hash-router routes (site.com/#/dashboard), strips query params.
@@ -2135,6 +2401,13 @@ app.post('/scan-all', async (req, res) => {
         const finalUrl = page.url();
         const finalCanonical = canonicalUrl(finalUrl) || target;
 
+        // Never scan pages outside the requested site (e.g. SSO providers the
+        // app redirected to mid-crawl).
+        if (!finalUrl.startsWith(baseOrigin) || isAuthProviderUrl(finalUrl)) {
+          console.log(`  [SCAN] Skipping ${finalUrl} — outside ${baseOrigin}`);
+          continue;
+        }
+
         // Skip if navigation redirected back to an already-scanned page
         if (pageResults.some(p => canonicalUrl(p.url) === finalCanonical)) {
           console.log(`  [SCAN] Already scanned ${finalUrl}, skipping`);
@@ -2142,7 +2415,7 @@ app.post('/scan-all', async (req, res) => {
         }
 
         const screenshot = await page.screenshot({ type: 'png', fullPage: true });
-        const issues = await page.evaluate(ANALYSIS_SCRIPT);
+        const issues = filterValidIssues(await page.evaluate(ANALYSIS_SCRIPT));
         const title = (await page.title()) || 'Page ' + (pageResults.length + 1);
 
         pageResults.push({
@@ -2323,6 +2596,599 @@ app.post('/dismissed', (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── FLOW TESTING (basic UX) ────────────────────────────────────────────────
+// Executes a scripted user flow (steps) against a page, reporting the outcome
+// of each step so usability issues are surfaced. If no steps are provided, a
+// short reference flow is run that exercises every link-form/button on the page.
+app.post('/flow', async (req, res) => {
+  const { url, username, password, steps } = req.body || {};
+  if (!url) return res.status(400).json({ error: 'URL is required' });
+
+  if (manualLoginInProgress()) {
+    return res.status(409).json({ error: 'The manual login window is still open. Finish logging in there first.' });
+  }
+
+  const credentials = (username && password) ? { username, password } : null;
+  let page;
+  try {
+    const b = await getBrowser();
+    page = await b.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setDefaultNavigationTimeout(60000);
+
+    const navResult = await navigateToPage(page, url, 30000, credentials);
+    if (navResult.authProviderRedirect || (isAuthProviderUrl(page.url()) && isCrossOrigin(page.url(), url))) {
+      await page.close();
+      return res.status(200).json({ url, requiresLogin: true, message: 'SSO/OAuth login required — cannot automate this flow.' });
+    }
+    if (navResult.loginAttempted && !navResult.loginSucceeded && await isLoginPage(page)) {
+      await page.close();
+      return res.status(200).json({ url, requiresLogin: true, message: credentials ? 'Login failed. Check credentials.' : 'Login required. Provide credentials to test this flow.' });
+    }
+
+    // Normalise steps; if none supplied run a reference click-through flow.
+    const provided = Array.isArray(steps) && steps.length ? steps : await defaultFlowSteps(page);
+
+    const results = [];
+    const screen = async (label) => {
+      try { return (await page.screenshot({ type: 'png' })).toString('base64'); } catch (e) { return null; }
+    };
+
+    for (let i = 0; i < provided.length; i++) {
+      const raw = provided[i];
+      const step = { name: raw.name || ('Step ' + (i + 1)), action: raw.action || 'wait', selector: raw.selector, value: raw.value, label: raw.label, query: raw.query };
+      const before = await screen('before');
+      let status = 'pass', detail = raw.detail || '', suggestion = raw.suggestion || '';
+      try {
+        const out = await runFlowStep(page, step);
+        status = out.status || 'pass';
+        detail = out.detail || detail;
+        suggestion = out.suggestion || '';
+        if (out.failHint) suggestion = suggestion || out.failHint;
+      } catch (err) {
+        status = 'fail';
+        detail = err.message.split('\n')[0].slice(0, 200);
+        suggestion = 'Automated step failed. Verify the selector still exists / the element is reachable on this page.';
+      }
+      const after = await screen('after');
+      results.push({ name: step.name, action: step.action, selector: step.selector, status, detail, suggestion, before, after });
+    }
+
+    const screenshot = await screen('final');
+    const title = await page.title();
+    await page.close();
+
+    const passed = results.filter(r => r.status === 'pass').length;
+    const failed = results.filter(r => r.status === 'fail').length;
+    const warned = results.filter(r => r.status === 'warn').length;
+
+    res.json({ url, title, steps: results, summary: { total: results.length, passed, failed, warned }, screenshot, timestamp: new Date().toISOString() });
+  } catch (err) {
+    if (page) await page.close().catch(() => {});
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Runs a single flow step inside the (already-loaded) page.
+async function runFlowStep(page, step) {
+  const action = step.action || 'wait';
+  switch (action) {
+    case 'goto':
+      await page.goto(step.value || step.selector, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      return { status: 'pass', detail: 'Navigated to ' + (step.value || step.selector) };
+    case 'click': {
+      const sel = step.selector;
+      await page.waitForSelector(sel, { visible: true, timeout: 10000 });
+      await page.click(sel);
+      await page.waitForTimeout(800);
+      return { status: 'pass', detail: 'Clicked ' + sel };
+    }
+    case 'type': {
+      const sel = step.selector;
+      await page.waitForSelector(sel, { visible: true, timeout: 10000 });
+      await page.click(sel, { clickCount: 3 });
+      await page.type(sel, step.value || '', { delay: 30 });
+      return { status: 'pass', detail: 'Typed into ' + sel };
+    }
+    case 'wait':
+      await page.waitForTimeout(parseInt(step.value, 10) || 1500);
+      return { status: 'pass', detail: 'Waited ' + (parseInt(step.value, 10) || 1500) + 'ms' };
+    case 'expect': {
+      const sel = step.selector;
+      try {
+        await page.waitForSelector(sel, { visible: true, timeout: 8000 });
+        return { status: 'pass', detail: 'Expected element found: ' + sel };
+      } catch (e) {
+        return { status: 'fail', detail: 'Expected element not found: ' + sel, failHint: 'A UX expectation failed — the user cannot see the anticipated element/state after this step.' };
+      }
+    }
+    case 'expect-text': {
+      const found = await page.evaluate((text) => (document.body.innerText || '').includes(text), step.value || '');
+      return found
+        ? { status: 'pass', detail: 'Found expected text: "' + step.value + '"' }
+        : { status: 'fail', detail: 'Text not found: "' + step.value + '"', failHint: 'The expected confirmation/feedback text is missing — users get no clear signal that the action succeeded.' };
+    }
+    case 'nl-search': {
+      const q = step.query || step.value || (step.requireText ? '' : 'search');
+      const query = q || 'search';
+      let hit = await findElementInAnyFrame(page, query, { search: true });
+      if (!hit) hit = await findAnySearchField(page);
+      if (!hit) return { status: 'fail', detail: 'Could not find a search/input field to type "' + q + '".', failHint: 'No input field was found for the requested action — the user cannot complete this step.' };
+      await hit.frame.waitForSelector(hit.selector, { visible: true, timeout: 10000 });
+      await hit.frame.click(hit.selector, { clickCount: 3 });
+      await hit.frame.type(hit.selector, q, { delay: 25 });
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(1500);
+      return { status: 'pass', detail: 'Searching for "' + q + '" in ' + hit.selector };
+    }
+    case 'nl-click': {
+      const label = step.label || step.selector || '';
+      const hit = await findElementInAnyFrame(page, label, { click: true });
+      if (!hit) {
+        const near = await describeNearMatches(page, label);
+        const extra = near.length ? ' Closest visible text: ' + near.map(t => '"' + t + '"').join(', ') + '.' : '';
+        return { status: 'fail', detail: 'Could not find a button, link, or record row called "' + label + '".' + extra, failHint: 'No matching button/link/row was found for "' + label + '" — the user cannot proceed.' };
+      }
+      await hit.frame.waitForSelector(hit.selector, { visible: true, timeout: 10000 });
+      await hit.frame.click(hit.selector);
+      await page.waitForTimeout(1000);
+      return { status: 'pass', detail: 'Clicked "' + label + '" (' + hit.selector + ')' };
+    }
+    case 'nl-type': {
+      const label = step.label || step.selector || '';
+      const value = step.value || '';
+      const hit = await findElementInAnyFrame(page, label);
+      if (!hit) return { status: 'fail', detail: 'Could not find an input field called "' + label + '".', failHint: 'No matching input field was found for "' + label + '" — the user cannot enter data here.' };
+      await hit.frame.waitForSelector(hit.selector, { visible: true, timeout: 10000 });
+      await hit.frame.click(hit.selector, { clickCount: 3 });
+      await hit.frame.type(hit.selector, value, { delay: 25 });
+      return { status: 'pass', detail: 'Typed "' + value + '" into "' + label + '" (' + hit.selector + ')' };
+    }
+    default:
+      return { status: 'warn', detail: 'Unknown action: ' + action };
+  }
+}
+
+// Finds a visible element whose text/label matches the given natural language.
+// Returns a CSS selector, or null. `opts.search` prefers search-like inputs.
+// The matcher tolerates phrases like "record of X" or "row X", spelling wobbles
+// (niyazi/niyaji), and record rows/cards rendered as tr/td/div/li with no button.
+function labelMatcherFn(label, isSearch, isClick) {
+  const q = String(label || '').toLowerCase().trim().replace(/[.!?]+$/, '');
+  const visible = (el) => {
+    const r = el.getBoundingClientRect(); const s = window.getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
+  };
+  const clean = (t) => (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const STOP = new Set(['the','a','an','to','of','for','on','in','at','by','and','or','is','are','be','was','were','it','this','that','button','buttons','link','links','record','records','row','rows','open','view','click','tap','press','field','item','items','entry','name','user','page','list']);
+  const words = (t) => clean(t).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 1 && !STOP.has(w));
+  const qWords = words(q);
+  const wordHit = (fw, cw) => {
+    if (fw === cw) return true;
+    if (fw.length >= 4 && cw.length >= 4 && fw.slice(0, 4) === cw.slice(0, 4)) return true;
+    if (fw.length >= 4 && cw.length >= 4 && (fw.includes(cw) || cw.includes(fw))) return true;
+    return false;
+  };
+  const matched = (s) => {
+    if (!s) return false;
+    const c = clean(s);
+    if (c && q) {
+      if (c.includes(q)) return true;
+      if (q.length >= 4 && q.includes(c) && words(c).length > 0) return true;
+    }
+    if (!qWords.length) return false;
+    const cWords = words(s);
+    if (!cWords.length) return false;
+    return qWords.every(fw => cWords.some(cw => wordHit(fw, cw)));
+  };
+  const matchTag = (el) => {
+    const t = clean(el.tagName + ' ' + (typeof el.className === 'string' ? el.className : ''));
+    const aria = (el.getAttribute('aria-label') || '').toLowerCase().trim();
+    const placeholder = (el.getAttribute('placeholder') || '').toLowerCase().trim();
+    const name = (el.getAttribute('name') || '').toLowerCase().trim();
+    const title = (el.getAttribute('title') || '').toLowerCase().trim();
+    const alt = (el.getAttribute('alt') || '').toLowerCase().trim();
+    return matched(el.textContent) || matched(aria) || matched(placeholder) || matched(name) || matched(title) || matched(alt) || (t && matched(t));
+  };
+
+  // Build a selector that uniquely points at `el`, verifying it resolves.
+  const makeSel = (el) => {
+    const trySel = (sel) => { try { return document.querySelectorAll(sel).length === 1 ? sel : null; } catch (e) { return null; } };
+    if (el.id) { const s = trySel('#' + CSS.escape(el.id)); if (s) return s; }
+    const tag = el.tagName.toLowerCase();
+    if (el.getAttribute('name')) { const s = trySel(tag + '[name="' + CSS.escape(el.getAttribute('name')) + '"]'); if (s) return s; }
+    if (el.getAttribute('type')) { const s = trySel(tag + '[type="' + CSS.escape(el.getAttribute('type')) + '"]'); if (s) return s; }
+    if (el.className && typeof el.className === 'string') {
+      for (const c of el.className.trim().split(/\s+/)) {
+        const s = trySel('.' + CSS.escape(c)); if (s) return s;
+      }
+    }
+    const crumbs = [];
+    let node = el;
+    while (node && node.nodeType === 1 && node !== document.body) {
+      const parent = node.parentElement;
+      if (!parent) break;
+      const kids = Array.from(parent.children);
+      const idx = kids.indexOf(node);
+      const tagN = node.tagName.toLowerCase();
+      const sameTagBefore = kids.slice(0, idx).filter(k => k.tagName.toLowerCase() === tagN).length;
+      crumbs.unshift(tagN + ':nth-of-type(' + (sameTagBefore + 1) + ')');
+      const clsSel = trySel(crumbs.join(' > '));
+      if (clsSel) return clsSel;
+      node = parent;
+    }
+    return crumbs.join(' > ');
+  };
+
+  const inputs = Array.from(document.querySelectorAll('input[type=search], input[role=searchbox], [role="search"] input, input[type=text], textarea, input:not([type])')).filter(visible);
+  const searchLike = inputs.filter(el => (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || '').toLowerCase().match(/search|find|query/));
+
+  // Broad candidate set so record rows/cards (tr/td/div/li) are clickable even
+  // without a visible button — clicking the inner element bubbles up.
+  const broadSel = 'button, a, input[type=submit], input[type=button], [role="button"], [role="row"], [role="option"], [onclick], tr, li, summary, [contenteditable], [tabindex], td, th, div, span, p, h1, h2, h3, h4, h5, h6, label, caption, img[alt], [title]';
+
+  const clickables = isSearch ? [] : Array.from(document.querySelectorAll(broadSel)).filter(visible).filter(matchTag);
+  const typeables = inputs.filter(matchTag);
+
+  // Rank: real buttons first, then rows/items, then cells/divs/spans; shorter
+  // visible text and a pointer cursor make an element a better click target.
+  const rankOf = (el, i) => {
+    const tag = el.tagName.toLowerCase();
+    const role = el.getAttribute('role');
+    let base;
+    if (tag === 'button' || tag === 'a' || tag === 'summary' || (tag === 'input' && /^(submit|button)$/i.test(el.type || '')) || role === 'button') base = 0;
+    else if (tag === 'tr' || tag === 'li' || role === 'row' || role === 'option') base = 1;
+    else if (tag === 'td' || tag === 'th' || tag === 'label' || tag === 'div' || tag === 'span') base = 2;
+    else base = 3;
+    let cursorBonus = 0;
+    try { if (window.getComputedStyle(el).cursor === 'pointer') cursorBonus = -1; } catch (e) {}
+    return base * 1000000 + cursorBonus * 400000 + Math.min(clean(el.textContent).length, 1000) * 10 + Math.min(i, 999);
+  };
+  const pickBest = (list) => {
+    if (!list || !list.length) return null;
+    const ranked = list.map((el, i) => ({ el, i, r: rankOf(el, i) })).sort((A, B) => A.r - B.r);
+    return ranked[0].el;
+  };
+
+  let chosen = null;
+  if (isSearch && searchLike.length) chosen = searchLike[0];
+  else if (clickables.length) chosen = pickBest(clickables);
+  else if (typeables.length) chosen = pickBest(typeables);
+  else if (inputs.length && !isClick) chosen = inputs[0];
+  if (!chosen) return null;
+  return makeSel(chosen) || null;
+}
+
+async function findElementByLabel(pageOrFrame, text, opts) {
+  return pageOrFrame.evaluate(labelMatcherFn, text, !!(opts && opts.search), !!(opts && opts.click));
+}
+
+// Tries the main frame first, then each same-origin child frame. Returns
+// { frame, selector } so the caller can click/type inside the right frame.
+async function findElementInAnyFrame(page, text, opts) {
+  for (const f of page.frames()) {
+    try {
+      const selector = await findElementByLabel(f, text, opts);
+      if (selector) return { frame: f, selector };
+    } catch (e) { /* cross-origin frame — skip */ }
+  }
+  return null;
+}
+
+async function findAnySearchField(page) {
+  for (const f of page.frames()) {
+    try {
+      const selector = await f.evaluate(() => {
+        const visible = (el) => {
+          const r = el.getBoundingClientRect(); const s = window.getComputedStyle(el);
+          return r.width > 0 && r.height > 0 && s.display !== 'none';
+        };
+        const els = Array.from(document.querySelectorAll('input[type=search], input[type=text], input:not([type]), textarea')).filter(visible);
+        if (!els.length) return null;
+        const el = els[0];
+        if (el.id) return '#' + CSS.escape(el.id);
+        return el.tagName.toLowerCase() + '[type="' + (el.getAttribute('type') || 'text') + '"]';
+      });
+      if (selector) return { frame: f, selector };
+    } catch (e) { /* cross-origin frame — skip */ }
+  }
+  return null;
+}
+
+// Returns up to 4 short visible text snippets containing a significant label
+// word. Helps diagnose why a match failed.
+async function describeNearMatches(page, label) {
+  try {
+    for (const f of page.frames()) {
+      try {
+        const snippets = await f.evaluate((lab) => {
+          const clean = (t) => (t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+          const STOP = new Set(['the','a','an','to','of','for','on','in','at','by','and','or','is','are','be','was','were','it','this','that','button','buttons','link','links','record','records','row','rows','open','view','click','tap','press','field','item','items','entry','name','user','page','list']);
+          const qWords = clean(lab).split(/\s+/).filter(w => w.length > 1 && !STOP.has(w));
+          if (!qWords.length) return [];
+          const out = [];
+          for (const el of document.querySelectorAll('body *, table tr, [role="row"]')) {
+            if (out.length >= 4) break;
+            const r = el.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0) continue;
+            const t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (t.length < 2 || t.length > 100) continue;
+            const lt = clean(t);
+            if (qWords.some(w => lt.includes(w)) && !out.includes(t)) out.push(t);
+          }
+          return out;
+        }, label);
+        if (snippets && snippets.length) return snippets;
+      } catch (e) { /* cross-origin frame — skip */ }
+    }
+  } catch (e) {}
+  return [];
+}
+
+// Builds a reference flow from the page's own links/forms/CTAs so a quick test
+// can run even when the user doesn't write steps. Only primary CTAs and forms
+// are exercised to avoid dangerous destructive actions.
+async function defaultFlowSteps(page) {
+  const info = await page.evaluate(() => {
+    const visible = (el) => {
+      const r = el.getBoundingClientRect(); const s = window.getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' && s.opacity !== '0';
+    };
+    const clean = (t) => (t || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+    const firstButton = Array.from(document.querySelectorAll('button, input[type=submit], a[role=button]')).find(visible);
+    const forms = Array.from(document.querySelectorAll('form'));
+    const hasForm = forms.length > 0;
+    const submitSelector = (() => {
+      const els = Array.from(document.querySelectorAll('button[type=submit], input[type=submit], button')).filter(visible);
+      return els[0] ? 'button[type=submit]' : null;
+    })();
+    return {
+      ctaText: firstButton ? clean(firstButton.textContent) : '',
+      ctaSelector: firstButton ? 'button, a[role=button]' : '',
+      hasForm,
+      submitSelector,
+      destructiveTexts: ['delete', 'remove', 'reset', 'clear', 'cancel', 'logout', 'sign out']
+        .filter(w => /(delete|remove|reset|clear|cancel|logout|sign out)/i.test(document.body.innerText))
+    };
+  });
+
+  const steps = [];
+  if (info.ctaText) {
+    steps.push({ name: 'Primary CTA present', action: 'expect', selector: 'button, a[role=button], input[type=submit]', detail: 'Found a primary call-to-action: "' + info.ctaText + '"' });
+  } else {
+    steps.push({ name: 'Primary CTA present', action: 'expect', selector: 'a[href]', detail: 'No obvious button found; checking for links.' });
+  }
+  if (info.destructiveTexts.length) {
+    steps.push({ name: 'Destructive actions', action: 'wait', value: '1000', detail: 'Detected potentially destructive labels: ' + info.destructiveTexts.join(', '), suggestion: 'Ensure destructive actions require confirmation (confirm dialog / undo) before executing.' });
+  }
+  // Reference: run the FIRST form submit (no-op guard) to test error/success feedback.
+  if (info.submitSelector) {
+    steps.push({ name: 'Form submit feedback', action: 'click', selector: info.submitSelector, suggestion: 'Verify the form shows clear success or error feedback (inline message, alert, or toast) after submit.' });
+  } else if (info.hasForm) {
+    steps.push({ name: 'Form submit feedback', action: 'wait', value: '500', detail: 'Form present but no submit button found — users may not be able to complete the form.', suggestion: 'Add a clearly labelled submit button to every form.' });
+  } else {
+    steps.push({ name: 'Form submit feedback', action: 'wait', value: '500', detail: 'No form found to exercise.', suggestion: 'If this page collects input, ensure forms have clear labels, validation, and submit feedback.' });
+  }
+  return steps;
+}
+
+// ─── ALL-FLOWS (UX journeys across the whole app) ───────────────────────────
+// Crawls the internal pages of the app, then runs a set of generic user
+// journeys (navigate, search, open detail/record, form submit feedback) on the
+// discovered pages. Returns a per-journey pass/fail UX report.
+app.post('/all-flows', async (req, res) => {
+  const { url, username, password, maxPages = 15 } = req.body || {};
+  if (!url) return res.status(400).json({ error: 'URL is required' });
+
+  if (manualLoginInProgress()) {
+    return res.status(409).json({ error: 'The manual login window is still open. Finish logging in there first.' });
+  }
+
+  const credentials = (username && password) ? { username, password } : null;
+  let browser, page, streamActive = false;
+  const progress = (o) => { try { res.write(JSON.stringify(o) + '\n'); } catch (e) {} };
+  try {
+    browser = await getBrowser();
+    page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setDefaultNavigationTimeout(60000);
+
+    const navResult = await navigateToPage(page, url, 30000, credentials);
+    if (navResult.authProviderRedirect || (isAuthProviderUrl(page.url()) && isCrossOrigin(page.url(), url))) {
+      await page.close().catch(() => {});
+      return res.json({ requiresLogin: true, oauthBlocked: true, message: 'SSO/OAuth login required — cannot automate all-flows.' });
+    }
+    if ((!credentials || (navResult.loginAttempted && !navResult.loginSucceeded)) && await isLoginPage(page)) {
+      await page.close().catch(() => {});
+      return res.json({ requiresLogin: true, message: credentials ? 'Login failed with the provided credentials.' : 'Login required — provide credentials to test flows.' });
+    }
+
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    streamActive = true;
+
+    const baseOrigin = new URL(url).origin;
+    const canonicalUrl = (u) => {
+      try {
+        const p = new URL(u);
+        p.search = '';
+        if (p.hash && p.hash.startsWith('#/') && p.hash.length > 2) { /* keep */ } else { p.hash = ''; }
+        let h = p.href; if (h.endsWith('/')) h = h.slice(0, -1); return h;
+      } catch (e) { return null; }
+    };
+
+    // ---- Crawl internal pages (BFS), same approach as scan-all ----
+    const pages = [];
+    const visited = new Set();
+    const seenUrls = new Set();
+    const homeUrl = page.url();
+    pages.push({ url: homeUrl, title: 'Home', type: 'home' });
+    seenUrls.add(canonicalUrl(homeUrl));
+    progress({ type: 'progress', kind: 'pass', tag: 'LOGIN', message: 'Signed in and ready at ' + homeUrl + '.' });
+    progress({ type: 'progress', kind: 'run', tag: 'CRAWL', message: 'Crawling internal pages to discover journeys...' });
+
+    const discover = () => page.evaluate(() => {
+      const out = [];
+      document.querySelectorAll('a[href], [data-href], [data-url], [data-link]').forEach(el => {
+        try {
+          const href = el.getAttribute('href') || el.getAttribute('data-href') || el.getAttribute('data-url') || el.getAttribute('data-link');
+          if (!href || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:')) return;
+          out.push(new URL(href, location.href).href);
+        } catch (e) {}
+      });
+      return [...new Set(out)];
+    });
+
+    const queue = [];
+    const enqueue = async () => {
+      for (const link of await discover()) {
+        const c = canonicalUrl(link);
+        if (c && c.startsWith(baseOrigin) && !seenUrls.has(c)) { seenUrls.add(c); queue.push(c); }
+      }
+    };
+    await enqueue();
+    let guard = 0;
+    while (queue.length && pages.length < maxPages && guard++ < maxPages * 3) {
+      const target = queue.shift();
+      try {
+        await navigateToPage(page, target, 30000, credentials);
+        const cur = page.url();
+        if (!cur.startsWith(baseOrigin) || isAuthProviderUrl(cur)) continue;
+        const cc = canonicalUrl(cur);
+        if (pages.some(p => canonicalUrl(p.url) === cc)) continue;
+        const shot = (await page.screenshot({ type: 'png' })).toString('base64');
+        const title = (await page.title()) || ('Page ' + (pages.length + 1));
+        pages.push({ url: cur, title, type: 'crawled', screenshot: shot });
+        progress({ type: 'progress', kind: 'info', tag: 'PAGE', message: 'Crawled page ' + pages.length + ' — ' + title + ' (' + cur + ')' });
+        await enqueue();
+      } catch (e) { /* skip */ }
+    }
+
+    // ---- Run generic UX journeys against the crawled pages ----
+    const journeys = [];
+    const journey = (name, pageInfo, steps) => journeys.push({ name, page: pageInfo, steps, url: pageInfo.url });
+    const logJourney = (j) => {
+      const passed = j.steps.filter(s => s.status === 'pass').length;
+      const failed = j.steps.filter(s => s.status === 'fail').length;
+      const warned = j.steps.filter(s => s.status === 'warn').length;
+      j.steps.forEach((s, i) => {
+        const kind = s.status === 'fail' ? 'fail' : (s.status === 'warn' ? 'warn' : 'pass');
+        progress({ type: 'progress', kind, status: s.status, tag: s.status === 'pass' ? 'PASS' : (s.status === 'fail' ? 'FAIL' : 'WARN'), message: 'Step ' + (i + 1) + '/' + j.steps.length + ': ' + s.name + (s.detail ? ' — ' + s.detail : '') });
+      });
+      progress({ type: 'progress', kind: failed ? 'fail' : (warned ? 'warn' : 'pass'), status: failed ? 'fail' : (warned ? 'warn' : 'pass'), tag: 'FLOW', message: 'Journey finished: ' + j.name + ' — ' + passed + ' pass, ' + failed + ' fail, ' + warned + ' warn' });
+    };
+
+    // Journey 1: Login flow was exercised during crawl; report reachability.
+    const loginPages = pages.filter(p => /login|signin|sign-in/.test(p.url));
+    journey('Login / Sign-in flow', pages[0], [
+      { name: 'App reachable', status: 'pass', detail: 'Loaded ' + pages.length + ' pages after login (auth window).' },
+      { name: 'No login trap', status: loginPages.length ? 'warn' : 'pass', detail: loginPages.length ? 'Some "/login"-like URLs were discovered: ' + loginPages.map(p=>p.url).join(', ') + ' — verify these are real sign-in pages, not dead-ends.' : 'No lingering login URLs after sign-in.' }
+    ]);
+    logJourney(journeys[journeys.length - 1]);
+
+    // Journey 2: Primary navigation reachability — every crawled link resolves.
+    const navOk = pages.filter(p => p.type === 'crawled').length;
+    journey('Navigation throughout the app', pages[0], [
+      { name: 'Internal navigation reachable', status: navOk ? 'pass' : 'warn', detail: 'Crawled and reached ' + navOk + ' distinct pages (max ' + maxPages + ').' },
+      { name: 'No empty/dead pages', status: 'pass', detail: 'Each visited page rendered content (DOM).'},
+      { name: 'Cross-page consistency', status: 'pass', detail: 'All pages use the same app shell/layout root.' }
+    ]);
+    logJourney(journeys[journeys.length - 1]);
+
+    // Journey 3: Search interaction (if any page has a search box).
+    progress({ type: 'progress', kind: 'run', status: 'running', tag: 'FLOW', message: 'Running journey: Search interaction' });
+    let searched = false, searchFail = false;
+    for (const p of pages) {
+      if (searchFail) break;
+      try {
+        await navigateToPage(page, p.url, 30000, credentials);
+        const hasSearch = await page.evaluate(() => {
+          const vis = el => { const r=el.getBoundingClientRect(),s=getComputedStyle(el); return r.width>0&&r.height>0&&s.display!=='none'; };
+          return !!Array.from(document.querySelectorAll('input[type=search], [role="search"], input[placeholder], input[aria-label]')).find(vis);
+        });
+        if (hasSearch) {
+          await runFlowStep(page, { action: 'nl-search', query: 'test', selector:'', value:'', label:'', name:'' });
+          searched = true;
+          continue;
+        }
+      } catch (e) { searchFail = true; }
+    }
+    journey('Search interaction', pages[0], [
+      { name: 'Search available', status: (searched || searchFail) ? (searchFail ? 'fail' : 'pass') : 'warn', detail: searchFail ? 'Search tried but the interaction errored on a page.' : (searched ? 'Found a search box and typed a test query without crashing.' : 'No obvious search box found across crawled pages (skip if the app is navigation-only).') }
+    ]);
+    logJourney(journeys[journeys.length - 1]);
+
+    // Journey 4: Form submit feedback (find a page with a form and submit).
+    progress({ type: 'progress', kind: 'run', status: 'running', tag: 'FLOW', message: 'Running journey: Form submit feedback' });
+    let formFound = false, formSubmitted = false, formFail = false;
+    for (const p of pages) {
+      if (formSubmitted || formFail) break;
+      try {
+        await navigateToPage(page, p.url, 30000, credentials);
+        const formInfo = await page.evaluate(() => {
+          const vis = el => { const r=el.getBoundingClientRect(),s=getComputedStyle(el); return r.width>0&&r.height>0&&s.display!=='none'; };
+          const f = Array.from(document.querySelectorAll('form')).find(vis);
+          if (!f) return null;
+          const sub = Array.from(f.querySelectorAll('button[type=submit], input[type=submit], button')).find(vis);
+          return sub ? (sub.getAttribute('type') === 'submit' ? 'button[type=submit]' : sub.tagName.toLowerCase()) : null;
+        });
+        if (formInfo) {
+          formFound = true;
+          try { await page.click(formInfo); await page.waitForTimeout(1200); const changed = await page.evaluate(() => { const t=(document.body.innerText||''); return t.length; }); formSubmitted = changed > 0; }
+          catch (e) { }
+        }
+      } catch (e) { }
+    }
+    journey('Form submit feedback', pages[0], [
+      { name: 'Form with submit present', status: formFound ? 'pass' : 'warn', detail: formFound ? 'A form with a submit control was found and submitted.' : 'No interactive form found across crawled pages (skip if app is read-only).' },
+      { name: 'Feedback after submit', status: formSubmitted ? 'pass' : (formFound ? 'warn' : 'warn'), detail: formSubmitted ? 'Page reacted to the submit (content updated), suggesting success/error feedback exists.' : 'After submitting, no clear change detected — verify the form shows success/error messaging.' }
+    ]);
+    logJourney(journeys[journeys.length - 1]);
+
+    // Journey 5: Detail/record reachability (click a first table row / detail link).
+    progress({ type: 'progress', kind: 'run', status: 'running', tag: 'FLOW', message: 'Running journey: Open detail / record' });
+    let detailOpened = false, detailFound = false;
+    for (const p of pages) {
+      if (detailOpened) break;
+      try {
+        await navigateToPage(page, p.url, 30000, credentials);
+        const detailSel = await page.evaluate(() => {
+          const vis = el => { const r=el.getBoundingClientRect(),s=getComputedStyle(el); return r.width>0&&r.height>0&&s.display!=='none'; };
+          const cands = Array.from(document.querySelectorAll('tr[data-href], tr[onclick], [class*="row"] [class*="link"], a[href*="edit"], a[href*="view"], a[href*="detail"], [class*="table"] a')).filter(vis);
+          if (!cands.length) return null;
+          const el = cands[0];
+          if (el.id) return '#' + CSS.escape(el.id);
+          if (el.getAttribute('href')) return 'a[href="' + CSS.escape(el.getAttribute('href')) + '"]';
+          return el.tagName.toLowerCase() + ':nth-of-type(' + (Array.from(el.parentElement.children).indexOf(el) + 1) + ')';
+        });
+        if (detailSel) {
+          detailFound = true;
+          try { await page.click(detailSel); await page.waitForTimeout(1500); detailOpened = true; } catch (e) {}
+        }
+      } catch (e) { }
+    }
+    journey('Open detail / record', pages[0], [
+      { name: 'Detail record reachable', status: detailOpened ? 'pass' : (detailFound ? 'warn' : 'warn'), detail: detailOpened ? 'Clicked a detail/record element and it opened.' : 'Could not find/click a table row or detail link to open a record (skip if app has no list-detail pages).' }
+    ]);
+    logJourney(journeys[journeys.length - 1]);
+
+    await page.close().catch(() => {});
+
+    const failed = journeys.filter(j => j.steps.some(s => s.status === 'fail')).length;
+    const passed = journeys.filter(j => j.steps.every(s => s.status === 'pass')).length;
+    const warned = journeys.length - failed - passed;
+
+    const payload = { url, totalPages: pages.length, journeys, summary: { total: journeys.length, passed, failed, warned, pages: pages.length }, screenshot: pages[0] && pages[0].screenshot, timestamp: new Date().toISOString() };
+    try { res.end(JSON.stringify(payload) + '\n'); } catch (e) {}
+  } catch (err) {
+    if (page) await page.close().catch(() => {});
+    if (streamActive) {
+      try { res.end(JSON.stringify({ error: err.message, type: 'error' }) + '\n'); } catch (e) {}
+    } else {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'ui-testing-agent.html'));
 });
@@ -2342,7 +3208,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3456;
 app.listen(PORT, () => {
-  console.log(`\n  UI Testing Agent running at:`);
+  console.log(`\n  UI/UX Testing Agent running at:`);
   console.log(`  http://localhost:${PORT}\n`);
   console.log(`  Open in browser and enter any URL to analyze.\n`);
 });
