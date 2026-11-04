@@ -37,3 +37,6 @@ server_err.log
 # Temp / debug files
 temp_debug.png
 dismissed-issues.json
+
+# Per-project state (dismissed issues, logs, fix history)
+data/

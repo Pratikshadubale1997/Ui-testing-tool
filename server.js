@@ -2577,7 +2577,9 @@ function saveDismissedStore() {
 }
 
 app.get('/dismissed', (req, res) => {
-  res.json(dismissedStore);
+  const project = req.query.project ? sanitizeProjectName(req.query.project) : null;
+  if (!project) return res.json(dismissedStore);
+  return res.json(loadProject(project).dismissed || {});
 });
 
 app.post('/dismissed', (req, res) => {
@@ -2585,15 +2587,112 @@ app.post('/dismissed', (req, res) => {
   if (typeof body !== 'object' || Array.isArray(body)) {
     return res.status(400).json({ error: 'Expected an object' });
   }
-  for (const [url, keys] of Object.entries(body)) {
-    if (!Array.isArray(keys)) continue;
-    if (!dismissedStore[url]) dismissedStore[url] = [];
-    for (const k of keys) {
-      if (!dismissedStore[url].includes(k)) dismissedStore[url].push(k);
+  const project = req.query.project ? sanitizeProjectName(req.query.project) : null;
+  const merge = (store) => {
+    for (const [url, keys] of Object.entries(body)) {
+      if (!Array.isArray(keys)) continue;
+      if (!store[url]) store[url] = [];
+      for (const k of keys) {
+        if (!store[url].includes(k)) store[url].push(k);
+      }
     }
+  };
+  if (project) {
+    const p = loadProject(project);
+    if (!p.dismissed) p.dismissed = {};
+    merge(p.dismissed);
+    saveProject(project, p);
+  } else {
+    merge(dismissedStore);
+    saveDismissedStore();
   }
-  saveDismissedStore();
   res.json({ ok: true });
+});
+
+// ─── PROJECTS (multi-tenant project/session state) ────────────────────
+// Each project persists its own dismissed issues, logs and fix history in
+// <project>.json under data/projects/, so work survives across sessions.
+const PROJECTS_DIR = path.join(__dirname, 'data', 'projects');
+try { fs.mkdirSync(PROJECTS_DIR, { recursive: true }); } catch (e) {}
+
+function sanitizeProjectName(name) {
+  return String(name || '').trim().replace(/[^a-zA-Z0-9 _-]/g, '').slice(0, 60);
+}
+function projectFilePath(project) {
+  return path.join(PROJECTS_DIR, (sanitizeProjectName(project) || 'default') + '.json');
+}
+function loadProject(project) {
+  try {
+    return JSON.parse(fs.readFileSync(projectFilePath(project), 'utf8'));
+  } catch (e) {
+    return {
+      project: sanitizeProjectName(project) || 'default',
+      createdAt: new Date().toISOString(),
+      dismissed: {},
+      logs: [],
+    };
+  }
+}
+function saveProject(project, data) {
+  try {
+    fs.writeFileSync(projectFilePath(project), JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('[PROJECT] Failed to save:', e.message);
+  }
+}
+
+app.get('/projects', (req, res) => {
+  const list = [];
+  try {
+    fs.readdirSync(PROJECTS_DIR).forEach(f => {
+      if (f.endsWith('.json')) {
+        const name = f.slice(0, -5);
+        const p = loadProject(name);
+        list.push({ project: name, url: (p && p.url) || '' });
+      }
+    });
+  } catch (e) {}
+  res.json(list);
+});
+
+app.post('/projects', (req, res) => {
+  const name = sanitizeProjectName((req.body || {}).name);
+  if (!name) return res.status(400).json({ error: 'Project name is required' });
+  const url = typeof (req.body || {}).url === 'string' ? (req.body || {}).url.trim() : '';
+  if (fs.existsSync(projectFilePath(name))) {
+    return res.status(200).json({ ok: true, project: name, existing: true });
+  }
+  saveProject(name, { project: name, url, createdAt: new Date().toISOString(), dismissed: {}, logs: [] });
+  res.json({ ok: true, project: name });
+});
+
+app.get('/projects/:project', (req, res) => {
+  res.json(loadProject(req.params.project));
+});
+
+app.post('/projects/:project/url', (req, res) => {
+  const project = sanitizeProjectName(req.params.project);
+  if (!project) return res.status(400).json({ error: 'Project name is required' });
+  const url = typeof (req.body || {}).url === 'string' ? (req.body || {}).url.trim() : '';
+  if (!url) return res.status(400).json({ error: 'URL is required' });
+  const p = loadProject(project);
+  p.url = url;
+  saveProject(project, p);
+  res.json({ ok: true, project, url });
+});
+
+app.post('/projects/:project/logs', (req, res) => {
+  const p = loadProject(req.params.project);
+  const entry = (req.body || {}).entry;
+  p.logs = p.logs || [];
+  if (entry && typeof entry === 'object') {
+    p.logs.push({ ...entry, at: new Date().toISOString() });
+  } else if (entry) {
+    p.logs.push({ message: String(entry), at: new Date().toISOString() });
+  }
+  if (p.logs.length > 500) p.logs = p.logs.slice(-500);
+  saveProject(req.params.project, p);
+  res.json({ ok: true, count: p.logs.length });
 });
 
 // ─── FLOW TESTING (basic UX) ────────────────────────────────────────────────

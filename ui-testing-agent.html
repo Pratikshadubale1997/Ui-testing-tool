@@ -10,55 +10,86 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --bg: #E5ECE9; --surface: #ffffff; --surface-2: #E5ECE9;
-      --border: #41808B; --text: #1a1a1a; --text-secondary: #41808B;
+      --bg: #E7ECEF; --surface: #ffffff; --surface-2: #F2F4F6;
+      --scroll-thumb: #A6B2B9; --scroll-thumb-hover: #8896A0;
+      --border: #41808B; --text: #1a1c1e; --text-secondary: #46707B;
       --primary: #7FB800; --primary-dark: #57A3AF;
       --success: #7FB800; --warning: #F46036; --danger: #F46036;
       --danger-bg: rgba(244,96,54,0.12); --warning-bg: rgba(244,96,54,0.12); --success-bg: rgba(127,184,0,0.12);
       --radius: 10px; --radius-lg: 16px; --shadow: 0 4px 24px rgba(0,0,0,0.1);
     }
     body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
-    
+
+    /* Scrollbars (distinct from the page background so white panels don't look cropped) */
+    * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+    *::-webkit-scrollbar { width: 10px; height: 10px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+    *::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); background-clip: content-box; }
+
+    /* Sticky app header: project bar row + chapter-tabs row */
+    .site-header { position: sticky; top: 0; z-index: 40; background: var(--surface); border-bottom: 1px solid var(--border); }
+
     /* Top Bar */
     .topbar {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 16px 24px;
+      padding: 10px 16px;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
       flex-wrap: wrap;
+      position: sticky;
+      top: var(--site-header-h, 115px);
+      z-index: 20;
     }
-    .topbar .logo { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-    .topbar .logo span { color: var(--primary); }
-    .topbar .logo small { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+    .topbar .logo, .compare-input .logo { font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .topbar .logo span, .compare-input .logo span { color: var(--primary); }
+    .topbar .logo small, .compare-input .logo small { font-size: 10px; font-weight: 500; color: var(--text-secondary); }
     .search-box {
       flex: 1;
       display: flex;
       gap: 8px;
-      min-width: 300px;
+      min-width: 380px;
+      flex-wrap: wrap;
     }
     .search-box input {
       flex: 1;
-      padding: 12px 18px;
+      padding: 7px 12px;
       border: 2px solid var(--border);
       border-radius: 8px;
       background: var(--bg);
       color: var(--text);
-      font-size: 14px;
+      font-size: 12px;
       outline: none;
       font-family: inherit;
       transition: 0.2s;
     }
+    select.toolbar-select {
+      padding: 7px 10px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      min-width: 130px;
+      height: 32px;
+      box-sizing: border-box;
+    }
+    select.toolbar-select:focus { border-color: var(--primary); }
+    .search-box select.toolbar-select { flex: 0 1 190px; min-width: 130px; }
     .search-box input:focus { border-color: var(--primary); }
     .search-box button {
-      padding: 12px 28px;
+      padding: 8px 22px;
       background: var(--primary);
       border: none;
       border-radius: 8px;
       color: #fff;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
       font-family: inherit;
       white-space: nowrap;
@@ -66,6 +97,12 @@
     }
     .search-box button:hover { background: var(--primary-dark); }
     .search-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Compact inputs used across all view headers */
+    .ctl { padding: 7px 10px !important; font-size: 12px !important; }
+    /* Primary action button (Analyze / Scan / Compare / Run) */
+    .act { padding: 8px 20px; background: var(--primary); border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+    .act:hover { background: var(--primary-dark); }
+    .act:disabled { opacity: 0.5; cursor: not-allowed; }
     .status-badge {
       display: flex;
       align-items: center;
@@ -100,11 +137,17 @@
       grid-template-columns: 1fr 1fr;
       gap: 20px;
       padding: 20px 24px;
-      height: calc(100vh - 80px);
+      height: calc(100vh - 200px);
+      min-height: 320px;
     }
     @media (max-width: 900px) {
       .content { grid-template-columns: 1fr; height: auto; }
     }
+
+    /* Scan All: let the page grow so the pages list is fully visible (no inner scroll).
+       Both panels stay equal height (stretch) and grow together. */
+    #scanAllView .content { height: auto; min-height: calc(100vh - 210px); }
+    #scanAllView #scanAllResults { overflow-y: visible; }
 
     /* Dashboard Panel */
     .panel {
@@ -131,8 +174,6 @@
       padding: 16px;
       min-height: 0;
     }
-    .panel-body::-webkit-scrollbar { width: 6px; }
-    .panel-body::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 3px; }
 
     /* Stats */
     .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
@@ -170,9 +211,16 @@
     .severity-high .issue-severity { background: var(--danger-bg); color: var(--danger); }
     .severity-medium .issue-severity { background: var(--warning-bg); color: var(--warning); }
     .severity-low .issue-severity { background: var(--success-bg); color: var(--success); }
-    .issue-desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+    .issue-desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .issue-explanation { font-size: 12px; color: var(--text); margin-top: 6px; padding: 8px 10px; background: var(--surface); border-radius: 6px; line-height: 1.5; }
     .issue-suggestion { font-size: 12px; color: var(--success); margin-top: 4px; padding: 6px 10px; display: flex; align-items: flex-start; gap: 6px; }
+    .issue-desc h1, .issue-desc h2, .issue-desc h3, .issue-desc h4, .issue-desc h5, .issue-desc h6,
+    .issue-explanation h1, .issue-explanation h2, .issue-explanation h3, .issue-explanation h4, .issue-explanation h5, .issue-explanation h6,
+    .issue-suggestion h1, .issue-suggestion h2, .issue-suggestion h3, .issue-suggestion h4, .issue-suggestion h5, .issue-suggestion h6,
+    .issue-desc strong, .issue-explanation strong, .issue-suggestion strong,
+    .issue-desc code, .issue-explanation code, .issue-suggestion code {
+      font-size: inherit; font-weight: inherit; margin: 0; padding: 0; display: inline; background: none;
+    }
     .issue-suggestion::before { content: '≡ƒÆí'; font-size: 13px; }
     .issue-category {
       font-size: 10px; color: var(--text-secondary); margin-top: 2px; display: flex; gap: 4px;
@@ -271,9 +319,10 @@
     @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
     .pv-highlight {
       position: absolute;
-      border: 2px solid var(--danger);
-      background: rgba(244, 96, 54, 0.18);
-      box-shadow: 0 0 0 9999px rgba(65, 128, 139, 0.35);
+      border: 3px solid var(--danger);
+      background: rgba(244, 96, 54, 0.22);
+      box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.35), 0 0 0 1px #fff inset;
+      outline: 1px solid #fff;
       border-radius: 3px;
       pointer-events: none;
       display: none;
@@ -283,21 +332,22 @@
 
     /* Flow Test Log */
     .file-log {
-      padding: 10px 16px;
-      font-family: Consolas, 'Courier New', monospace;
+      padding: 14px 20px;
+      font-family: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
       font-size: 12px;
-      line-height: 1.7;
+      line-height: 1.85;
+      background: var(--surface);
     }
     .log-line {
       display: flex;
-      gap: 10px;
+      gap: 0;
       padding: 3px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(0,0,0,0.05);
       align-items: baseline;
     }
-    .log-time { color: var(--text-secondary); flex-shrink: 0; opacity: 0.8; }
-    .log-tag { flex-shrink: 0; font-weight: 700; min-width: 52px; text-transform: uppercase; letter-spacing: 0.4px; }
-    .log-msg { white-space: pre-wrap; word-break: break-word; }
+    .log-time { color: var(--text-secondary); flex-shrink: 0; width: 88px; opacity: 0.85; }
+    .log-tag { flex-shrink: 0; width: 64px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .log-msg { flex: 1; white-space: pre-wrap; word-break: break-word; }
     .log-info .log-tag, .log-info .log-msg { color: var(--text-secondary); }
     .log-run .log-tag { color: var(--primary); }
     .log-run .log-msg { color: var(--text); }
@@ -305,35 +355,90 @@
     .log-fail .log-tag, .log-fail .log-msg { color: var(--danger); }
     .log-warn .log-tag, .log-warn .log-msg { color: var(--warning); }
     .pv-highlight.show { display: block; }
-    .issue-item.clickable { cursor: pointer; }
-    .issue-item.selected { outline: 2px solid var(--primary); box-shadow: 0 0 0 4px rgba(127, 184, 0, 0.25); }
+    .issue-item.clickable { cursor: pointer; transition: background 0.15s, box-shadow 0.15s, border-color 0.15s; }
+    .issue-item.clickable:hover { background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.10); }
+    .issue-item.clickable:focus-visible { outline: 2px solid var(--primary); }
 
     /* Empty */
     .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
     .empty-state h3 { font-size: 16px; color: var(--text); margin-bottom: 6px; }
     .empty-state p { font-size: 13px; }
 
-    /* Tabs */
-    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); }
-    .tab-btn { padding: 12px 24px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; border-bottom: 2px solid transparent; transition: 0.2s; }
+    /* Tabs (chapters) own row + sub-tab popup */
+    .tabs { display: flex; align-items: center; gap: 0; padding: 0 8px; }
+    .tab-btn { padding: 10px 18px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; border-bottom: 2px solid transparent; transition: 0.2s; white-space: nowrap; }
     .tab-btn:hover { color: var(--text); }
     .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .sub-tabs { margin-left: auto; display: flex; align-items: center; gap: 10px; padding-right: 8px; }
+    .current-sub { font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+    .current-sub b { color: var(--text); font-weight: 700; }
+    .sub-tab-trigger { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 15px; background: #fff; color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+    .sub-tab-trigger:hover { border-color: var(--primary); }
+    .sub-tab-trigger .caret { color: var(--text-secondary); font-size: 10px; }
+    .sub-tab-menu { position: absolute; top: calc(100% - 4px); left: 0; min-width: 200px; background: #191d21; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); padding: 6px; display: none; flex-direction: column; z-index: 60; }
+    .sub-tab-menu.open { display: flex; }
+    .sub-tab-menu button { text-align: left; padding: 9px 12px; border: none; background: transparent; color: #e2e6ea; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; border-radius: 6px; display: flex; align-items: center; gap: 8px; }
+    .sub-tab-menu button:hover { background: rgba(255,255,255,0.10); color: #fff; }
+    .sub-tab-menu button.active { background: rgba(120,180,255,0.22); color: #fff; }
+    .sub-tab-menu button.active::before { content: '●'; font-size: 8px; color: #7ec3ff; }
+
+    /* Project bar */
+    .project-bar { display: flex; align-items: center; gap: 8px; padding: 7px 16px; font-size: 12px; flex-wrap: nowrap; border-bottom: 1px solid var(--border); }
+    .project-bar .pb-label { color: var(--text-secondary); font-weight: 600; white-space: nowrap; }
+    .project-bar select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 12px; background: var(--surface); color: var(--text); max-width: 200px; }
+    .project-bar .pb-url-label { color: var(--text-secondary); font-weight: 600; white-space: nowrap; }
+    .project-bar .pb-url { flex: 1; min-width: 140px; padding: 5px 10px; border: 1.5px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 12px; font-family: inherit; outline: none; }
+    .project-bar .pb-url:focus { border-color: var(--primary); }
+    .project-bar .pb-save { padding: 4px 12px; background: var(--primary); border: none; border-radius: 6px; color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .project-bar .pb-save:hover { background: var(--primary-dark); }
+
+    /* Scan-all summary rows */
+    .scan-summary { display: flex; flex-direction: column; gap: 8px; }
+    .page-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface-2); border-radius: var(--radius); cursor: pointer; border-left: 4px solid var(--border); transition: 0.15s; }
+    .page-row:hover { background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.10); }
+    .page-row.active { border-left-color: var(--primary); background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.10); }
+    .page-row.active .pr-num, .page-row.active .pr-name { color: var(--primary); }
+    .page-row .pr-num { font-weight: 800; color: var(--text-secondary); font-size: 12px; width: 34px; }
+    .page-row .pr-main { flex: 1; min-width: 0; }
+    .page-row .pr-name { font-weight: 600; font-size: 13px; word-break: break-all; }
+    .page-row .pr-title { color: var(--text-secondary); font-size: 11px; word-break: break-all; }
+    .page-row .pr-badge { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .page-row .pr-badge.bad { background: var(--danger-bg); color: var(--danger); }
+    .page-row .pr-badge.warn { background: var(--warning-bg); color: var(--warning); }
+    .page-row .pr-badge.ok { background: var(--success-bg); color: var(--success); }
+    .page-row .pr-go { color: var(--text-secondary); font-size: 15px; }
 
     /* Compare UI */
-    .compare-input { display: flex; flex-direction: column; gap: 8px; padding: 16px 24px; background: var(--surface); }
-    .compare-input textarea { width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; outline: none; resize: vertical; min-height: 80px; }
+    .compare-input { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; background: var(--surface); position: sticky; top: var(--site-header-h, 115px); z-index: 20; }
+    .compare-input textarea { width: 100%; padding: 8px 12px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; outline: none; resize: vertical; min-height: 60px; }
     .compare-input textarea:focus { border-color: var(--primary); }
+    .compare-input input[type=text], .compare-input input[type=url], .compare-input input[type=password] { padding: 7px 10px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 12px; font-family: inherit; outline: none; }
+    .compare-input input:focus { border-color: var(--primary); }
     .compare-input .hint { font-size: 12px; color: var(--text-secondary); }
-    .compare-input .row { display: flex; gap: 8px; align-items: center; }
+    .compare-input > .row:first-child:has(.logo) { margin-bottom: -8px; }
+    .compare-input .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
     /* Comparison Results */
     .comp-page-list { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
     .comp-page-item { background: var(--surface-2); border-radius: var(--radius); padding: 10px 14px; font-size: 12px; min-width: 120px; flex: 1; }
     .comp-page-item .label { color: var(--text-secondary); font-size: 10px; text-transform: uppercase; }
     .comp-page-item .val { color: var(--text); word-break: break-all; font-size: 11px; margin-top: 2px; }
-    .comp-card { background: var(--surface-2); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
-    .comp-card-header { padding: 12px 16px; background: var(--surface); font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .comp-card { background: var(--surface-2); border-radius: var(--radius); margin-bottom: 12px; }
+    .comp-card-header { padding: 12px 16px; background: var(--surface); font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
     .comp-card-body { padding: 12px 16px; }
+    .comp-prop { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .comp-prop:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .comp-prop-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 6px; font-family: monospace; }
+    .comp-values { display: flex; flex-wrap: wrap; gap: 6px; }
+    .comp-val { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-family: monospace; padding: 3px 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); max-width: 100%; overflow-wrap: anywhere; }
+    .comp-val b { font-weight: 600; color: var(--text-secondary); font-family: inherit; }
+    .comp-val.diff { color: var(--danger); background: var(--danger-bg); border-color: transparent; }
+    .comp-val.same { color: var(--success); }
+    .cross-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+    .cross-toggle:hover { background: var(--surface); }
+    .cross-toggle .ct-count { margin-left: auto; font-weight: 700; color: var(--danger); }
+    .cross-toggle .ct-arrow { transition: transform 0.15s ease; }
+    .cross-toggle.open .ct-arrow { transform: rotate(180deg); }
     .comp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .comp-table th { text-align: left; padding: 6px 8px; color: var(--text-secondary); font-weight: 500; border-bottom: 1px solid var(--border); }
     .comp-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 11px; }
@@ -356,46 +461,47 @@
     /* Password toggle */
     .pw-wrap { position: relative; flex: 1; min-width: 120px; }
     .pw-wrap input { width: 100%; box-sizing: border-box; padding-right: 36px; }
-    .pw-toggle {
+    button.pw-toggle, button.pw-toggle:hover {
       position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-      background: none; border: none; cursor: pointer; padding: 4px;
-      color: var(--text-secondary); font-size: 16px; line-height: 1;
+      background: none; border: none; outline: none;
+      color: inherit; cursor: pointer; padding: 4px;
+      font-size: 16px; line-height: 1;
       display: flex; align-items: center; justify-content: center;
+      box-shadow: none;
     }
-    .pw-toggle:hover { color: var(--text); }
+    button.pw-toggle svg { display: block; pointer-events: none; }
   </style>
 </head>
 <body>
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="scan" onclick="switchTab('scan', this)">Single Scan</button>
-    <button class="tab-btn" data-tab="scanall" onclick="switchTab('scanall', this)">Scan All Pages</button>
-    <button class="tab-btn" data-tab="compare" onclick="switchTab('compare', this)">Compare Pages</button>
-    <button class="tab-btn" data-tab="screenshots" onclick="switchTab('screenshots', this)">Screenshots</button>
-    <button class="tab-btn" data-tab="flow" onclick="switchTab('flow', this)">Flow Test</button>
-    <button class="tab-btn" data-tab="allflows" onclick="switchTab('allflows', this)">All Flows</button>
+  <!-- Sticky app header: project + chapters + sub-tabs -->
+  <div class="site-header">
+    <div class="tabs" onmouseleave="scheduleCloseSubMenu()">
+      <button class="tab-btn active" data-tab="scan" onclick="switchChapter('scan', this)" onmouseenter="previewChapter('scan', this)">Scan Pages</button>
+      <button class="tab-btn" data-tab="compare" onclick="switchChapter('compare', this)" onmouseenter="previewChapter('compare', this)">Compare</button>
+      <button class="tab-btn" data-tab="flow" onclick="switchChapter('flow', this)" onmouseenter="previewChapter('flow', this)">Flow</button>
+      <div class="sub-tabs">
+        <div class="current-sub" id="currentSubLabel"></div>
+        <div class="sub-tab-menu" id="subTabMenu" onclick="event.stopPropagation()" onmouseenter="cancelCloseSubMenu()" onmouseleave="scheduleCloseSubMenu()"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ΓöÇΓöÇΓöÇ SINGLE SCAN VIEW ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ -->
   <div id="scanView">
     <div class="topbar">
-      <div class="logo">UI/UX <span>Agent</span> <small>UI/UX Testing</small></div>
-      <div class="search-box">
-        <input type="url" id="urlInput" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" />
-      </div>
-      <div class="row" style="display:flex;gap:6px;flex:1;min-width:280px;align-items:center;">
-        <input id="scanUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
-        <div class="pw-wrap">
-          <input id="scanPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
-          <button class="pw-toggle" onclick="togglePw('scanPass', this)" title="Show/Hide password">&#128065;</button>
-        </div>
-      </div>
-      <div class="row" style="justify-content:flex-end;flex:1;min-width:280px;">
-        <button id="analyzeBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Analyze</button>
-      </div>
-      <div class="status-badge">
+      <div class="logo">UI/UX <span>Agent</span> <small>Single Scan</small></div>
+      <div class="status-badge" style="margin-left:auto;">
         <span class="status-dot idle" id="statusDot"></span>
         <span id="statusText">Ready</span>
+      </div>
+      <div class="search-box" style="flex:1 1 100%;">
+        <input id="scanUrl" type="text" placeholder="URL (blank uses the project URL)" autocomplete="off" spellcheck="false" style="flex:1 1 300px;min-width:180px;" />
+        <input id="scanUser" type="text" placeholder="Username" autocomplete="off" style="flex:1 1 220px;min-width:140px;" />
+        <div class="pw-wrap" style="flex:1 1 220px;min-width:140px;">
+          <input id="scanPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding-right:34px;" />
+          <button class="pw-toggle" onclick="togglePw('scanPass', this)" title="Show/Hide password"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+        </div>
+        <button id="analyzeBtn" class="act">Analyze</button>
       </div>
     </div>
     <div class="progress-bar">
@@ -437,20 +543,18 @@
   <div id="compareView" style="display:none;">
     <div class="compare-input">
       <div class="row">
-        <span style="font-weight:600;font-size:14px;">Compare Pages</span>
+        <div class="logo">UI/UX <span>Agent</span> <small>Compare Pages</small></div>
       </div>
       <textarea id="compareUrls" placeholder="Enter URLs, one per line&#10;https://example.com/page1&#10;https://example.com/page2&#10;https://example.com/page3"></textarea>
-      <div class="row" style="display:flex;margin-top:8px;gap:8px;align-items:center;">
-        <input id="loginUser" type="text" placeholder="Username (if login required)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-        <div class="pw-wrap">
-          <input id="loginPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-          <button class="pw-toggle" onclick="togglePw('loginPass', this)" title="Show/Hide password">&#128065;</button>
+      <div class="row" style="flex-wrap:nowrap;">
+        <input id="loginUser" type="text" placeholder="Username (if login required)" autocomplete="off" style="flex:1 1 180px;min-width:0;" />
+        <div class="pw-wrap" style="flex:1 1 180px;min-width:0;">
+          <input id="loginPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding-right:34px;" />
+          <button class="pw-toggle" onclick="togglePw('loginPass', this)" title="Show/Hide password"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
         </div>
+        <button id="compareBtn" class="act">Compare</button>
       </div>
       <div class="hint">Enter at least 2 URLs. The agent extracts visual properties (colors, fonts, sizes, spacing) from common elements and reports inconsistencies. If pages require login, provide credentials above.</div>
-      <div style="display:flex;justify-content:flex-end;">
-        <button id="compareBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
-      </div>
       <div id="compareStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
     <div class="content">
@@ -490,22 +594,20 @@
   <div id="screenshotsView" style="display:none;position:relative;z-index:1;background:var(--bg);">
     <div class="compare-input">
       <div class="row">
-        <span style="font-weight:600;font-size:14px;">Compare Screenshots</span>
+        <div class="logo">UI/UX <span>Agent</span> <small>Compare Screenshots</small></div>
       </div>
-      <div class="row" style="gap:12px;margin-top:12px;">
-        <div style="flex:1;">
+      <div class="row" style="gap:12px;align-items:flex-end;">
+        <div style="flex:1;min-width:220px;">
           <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Screenshot 1</label>
-          <input type="file" id="ssFile1" accept="image/png,image/jpeg" style="width:100%;padding:8px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;" />
+          <input type="file" id="ssFile1" accept="image/png,image/jpeg" style="width:100%;padding:6px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;font-family:inherit;" />
         </div>
-        <div style="flex:1;">
+        <div style="flex:1;min-width:220px;">
           <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">Screenshot 2</label>
-          <input type="file" id="ssFile2" accept="image/png,image/jpeg" style="width:100%;padding:8px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;" />
+          <input type="file" id="ssFile2" accept="image/png,image/jpeg" style="width:100%;padding:6px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;font-family:inherit;" />
         </div>
+        <button id="ssCompareBtn" class="act" style="margin-bottom:4px;">Compare</button>
       </div>
       <div class="hint">Upload two screenshots of your pages. The tool compares them and lists the visual differences - click an issue to highlight it on both screenshots, then Apply Fix or Ignore it.</div>
-      <div style="display:flex;justify-content:flex-end;">
-        <button id="ssCompareBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Compare</button>
-      </div>
       <div id="ssStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
     <div class="content">
@@ -547,17 +649,13 @@
     <div class="topbar">
       <div class="logo">UI/UX <span>Agent</span> <small>Scan All Pages</small></div>
       <div class="search-box">
-        <input type="url" id="scanAllUrl" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" />
-      </div>
-      <div class="row" style="display:flex;gap:6px;flex:1;min-width:280px;align-items:center;">
-        <input id="scanAllUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
-        <div class="pw-wrap">
-          <input id="scanAllPass" type="password" placeholder="Password" autocomplete="new-password" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;min-width:120px;" />
-          <button class="pw-toggle" onclick="togglePw('scanAllPass', this)" title="Show/Hide password">&#128065;</button>
+        <input id="scanAllUrl" type="text" placeholder="URL (blank uses the project URL)" autocomplete="off" spellcheck="false" style="flex:1 1 260px;min-width:200px;" />
+        <input id="scanAllUser" type="text" placeholder="Username" autocomplete="off" style="flex:0 1 170px;min-width:120px;" />
+        <div class="pw-wrap" style="flex:0 1 170px;min-width:120px;">
+          <input id="scanAllPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding-right:34px;" />
+          <button class="pw-toggle" onclick="togglePw('scanAllPass', this)" title="Show/Hide password"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
         </div>
-      </div>
-      <div class="row" style="justify-content:flex-end;flex:1;min-width:280px;">
-        <button id="scanAllBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Scan All Pages</button>
+        <button id="scanAllBtn" class="act">Scan All Pages</button>
       </div>
       <div class="status-badge">
         <span class="status-dot idle" id="scanAllDot"></span>
@@ -600,26 +698,24 @@
   <div id="flowView" style="display:none;">
     <div class="compare-input">
       <div class="row">
-        <span style="font-weight:600;font-size:14px;">Flow Test (Basic UX)</span>
+        <div class="logo">UI/UX <span>Agent</span> <small>Flow Test</small></div>
       </div>
-      <div class="row" style="gap:8px;margin-top:8px;">
-        <input id="flowUrl" type="text" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" style="flex:2;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-        <input id="flowUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-        <div class="pw-wrap" style="flex:1;">
-          <input id="flowPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-          <button class="pw-toggle" onclick="togglePw('flowPass', this)" title="Show/Hide password">&#128065;</button>
+      <div class="row">
+        <input id="flowUrl" type="text" placeholder="Enter web app URL (e.g. https://example.com)" autocomplete="off" style="flex:2;min-width:220px;" />
+        <input id="flowUser" type="text" placeholder="Username" autocomplete="off" style="flex:1 1 160px;min-width:130px;" />
+        <div class="pw-wrap" style="flex:1 1 160px;min-width:130px;">
+          <input id="flowPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding-right:34px;" />
+          <button class="pw-toggle" onclick="togglePw('flowPass', this)" title="Show/Hide password"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
         </div>
+        <button id="flowRunBtn" class="act">Run Flow</button>
       </div>
-      <div class="hint" style="margin-top:8px;">Write what the user should do — in plain English, one action per line. Example:
+      <div class="hint">Write what the user should do — in plain English, one action per line. Example:
         <code style="display:block;margin-top:4px;font-size:11px;">search for shoes&#10;click add to cart&#10;expect Thank you for your order</code>
         <code style="display:block;margin-top:4px;font-size:11px;">Also supports the strict format: action | selector | value&#10;(goto | URL, click | selector, type | selector | text, wait | ms, expect | selector, expect-text | text)</code>
       </div>
-      <label for="flowSteps" style="display:block;margin-top:12px;font-weight:600;font-size:13px;">Flow Actions <span style="color:var(--danger);">*</span> <span style="font-weight:400;font-size:11px;color:var(--text-secondary);">Required — one action per line</span></label>
-      <textarea id="flowSteps" required placeholder="Tell the agent what to do, one step per line:&#10;search for shoes&#10;click add to cart&#10;type email | user@test.com&#10;expect Thank you for your order" style="width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;resize:vertical;min-height:60px;margin-top:6px;"></textarea>
-      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-        <button id="flowRunBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Run Flow</button>
-      </div>
-      <div id="flowStatus" style="font-size:13px;color:var(--text-secondary);display:none;margin-top:8px;"></div>
+      <label for="flowSteps" style="display:block;font-weight:600;font-size:13px;">Flow Actions <span style="color:var(--danger);">*</span> <span style="font-weight:400;font-size:11px;color:var(--text-secondary);">Required — one action per line</span></label>
+      <textarea id="flowSteps" required placeholder="Tell the agent what to do, one step per line:&#10;search for shoes&#10;click add to cart&#10;type email | user@test.com&#10;expect Thank you for your order" style="width:100%;min-height:60px;"></textarea>
+      <div id="flowStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
     <div class="content">
       <div class="panel">
@@ -656,21 +752,19 @@
   <div id="allFlowsView" style="display:none;">
     <div class="compare-input">
       <div class="row">
-        <span style="font-weight:600;font-size:14px;">All Flows (UX across the whole app)</span>
+        <div class="logo">UI/UX <span>Agent</span> <small>All Flows</small></div>
       </div>
-      <div class="row" style="gap:8px;margin-top:8px;">
-        <input id="allFlowsUrl" type="text" placeholder="Enter your app&#39;s main URL (e.g. https://example.com/)" autocomplete="off" style="flex:2;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-        <input id="allFlowsUser" type="text" placeholder="Username (if login)" autocomplete="off" style="flex:1;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-        <div class="pw-wrap" style="flex:1;">
-          <input id="allFlowsPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding:8px 12px;border:2px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:13px;font-family:inherit;outline:none;" />
-          <button class="pw-toggle" onclick="togglePw('allFlowsPass', this)" title="Show/Hide password">&#128065;</button>
+      <div class="row">
+        <input id="allFlowsUrl" type="text" placeholder="URL (blank uses the project URL)" autocomplete="off" spellcheck="false" style="flex:2;min-width:220px;" />
+        <input id="allFlowsUser" type="text" placeholder="Username" autocomplete="off" style="flex:1 1 160px;min-width:130px;" />
+        <div class="pw-wrap" style="flex:1 1 160px;min-width:130px;">
+          <input id="allFlowsPass" type="password" placeholder="Password" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding-right:34px;" />
+          <button class="pw-toggle" onclick="togglePw('allFlowsPass', this)" title="Show/Hide password"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
         </div>
+        <button id="allFlowsRunBtn" class="act">Run All Flows</button>
       </div>
-      <div class="hint" style="margin-top:8px;">The agent signs in, crawls the app&#39;s internal pages, then runs generic UX journeys — navigation, search, form submit feedback and record/detail open — reporting a pass/fail summary for each journey across the whole application.</div>
-      <div style="display:flex;justify-content:flex-end;margin-top:8px;">
-        <button id="allFlowsRunBtn" style="padding:10px 28px;background:var(--primary);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">Run All Flows</button>
-      </div>
-      <div id="allFlowsStatus" style="font-size:13px;color:var(--text-secondary);display:none;margin-top:8px;"></div>
+      <div class="hint">The agent signs in, crawls the app&#39;s internal pages, then runs generic UX journeys — navigation, search, form submit feedback and record/detail open — reporting a pass/fail summary for each journey across the whole application.</div>
+      <div id="allFlowsStatus" style="font-size:13px;color:var(--text-secondary);display:none;"></div>
     </div>
     <div class="content">
       <div class="panel">
@@ -714,19 +808,168 @@
     // localStorage is kept as a local cache only.
     let ignoredStore = {};
     try { ignoredStore = JSON.parse(localStorage.getItem('uiAgentIgnored') || '{}'); } catch (e) { ignoredStore = {}; }
+    // ─── PROJECTS (project/session state) ──────────────────────────────
+    // An active project scopes ignored issues, logs and fix history to
+    // project files stored on the server, so work survives across sessions.
+    let activeProject = '';
+    let projectList = [];
+    let activeProjectUrl = '';
+    let currentScanUrl = '';
+    try { activeProject = localStorage.getItem('uiAgentProject') || ''; } catch (e) { activeProject = ''; }
+    function projectQuery() { return activeProject ? '?project=' + encodeURIComponent(activeProject) : ''; }
+
+    // Keeps the project URL in sync across the UI and Scan All. currentScanUrl
+    // can temporarily point at a sub-page (drill-down) instead of the project root.
+    function applyProjectUrl(url) {
+      activeProjectUrl = (url || '').trim();
+      currentScanUrl = activeProjectUrl;
+      const inp = document.getElementById('projectUrlInput');
+      if (inp) inp.value = activeProjectUrl;
+    }
+    // Turns the Single Scan text into a URL the analyzer can open:
+    //  - a full URL is used as-is
+    //  - a page name (e.g. "#/contacten-details" or "contacten") is resolved
+    //    against the project URL, matching a previously crawled page first
+    function resolvePageTarget(input) {
+      const s = (input || '').trim();
+      const baseUrl = (currentScanUrl || activeProjectUrl || '').trim();
+      if (!s) return { url: baseUrl, kind: 'project' };
+      if (/^https?:\/\//i.test(s)) return { url: s, kind: 'url' };
+
+      const label = s.toLowerCase().replace(/^[/#]+/, '');
+      const pages = (scanAllState && scanAllState.pages) || [];
+      const match = pages.find(p => p.url && (
+        getPageLabel(p.url).toLowerCase().replace(/^[/#]+/, '') === label ||
+        p.url.toLowerCase() === s.toLowerCase() ||
+        String(p.url.split('#').pop() || '').toLowerCase().replace(/^[/#]+/, '') === label
+      ));
+      if (match) return { url: match.url, kind: 'name' };
+
+      if (!baseUrl) return { url: s, kind: 'raw' };
+      try {
+        const base = new URL(baseUrl);
+        if (s.startsWith('#')) {
+          return { url: base.origin + base.pathname + s.replace(/\/{2,}/, '/'), kind: 'name' };
+        }
+        if (s.startsWith('/')) {
+          return { url: base.origin + s, kind: 'path' };
+        }
+        const hashBase = base.hash.startsWith('#/') ? '#/' : '#';
+        return { url: base.origin + base.pathname + hashBase + s.replace(/^\//, ''), kind: 'name' };
+      } catch (e) {
+        return { url: s, kind: 'raw' };
+      }
+    }
+
     function saveIgnored() {
       try { localStorage.setItem('uiAgentIgnored', JSON.stringify(ignoredStore)); } catch (e) {}
-      fetch('/dismissed', {
+      fetch('/dismissed' + projectQuery(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ignoredStore)
       }).catch(() => {});
     }
     // Load the server store (server wins over the local cache).
-    fetch('/dismissed')
-      .then(r => r.json())
-      .then(data => { if (data && typeof data === 'object') ignoredStore = data; })
-      .catch(() => {});
+    function reloadIgnored() {
+      fetch('/dismissed' + projectQuery())
+        .then(r => r.json())
+        .then(data => { if (data && typeof data === 'object') ignoredStore = data; })
+        .catch(() => {});
+    }
+    reloadIgnored();
+
+    function logToProject(kind, tag, message) {
+      if (!activeProject) return;
+      fetch('/projects/' + encodeURIComponent(activeProject) + '/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry: { kind, tag, message } })
+      }).catch(() => {});
+    }
+
+    function refreshProjectSelect() {
+      const options = '<option value="">Select project</option>' + projectList.map(p => '<option value="' + escapeHtml(p.project) + '">' + escapeHtml(p.project) + '</option>').join('');
+      const sel = document.getElementById('projectSelect');
+      if (sel) {
+        sel.innerHTML = options;
+        if (activeProject && projectList.some(p => p.project === activeProject)) sel.value = activeProject;
+      }
+    }
+    async function getProjectUrl(name) {
+      if (!name) return '';
+      const p = projectList.find(x => x.project === name);
+      if (p && p.url) return String(p.url).trim();
+      const detail = await fetch('/projects/' + encodeURIComponent(name)).then(r => r.json()).catch(() => ({}));
+      return ((detail && detail.url) || '').trim();
+    }
+    function onProjectSelect(name) {
+      activeProject = name || '';
+      try { if (activeProject) localStorage.setItem('uiAgentProject', activeProject); else localStorage.removeItem('uiAgentProject'); } catch (e) {}
+      refreshProjectSelect();
+      reloadIgnored();
+      if (activeProject) {
+        fetch('/projects/' + encodeURIComponent(activeProject))
+          .then(r => r.json())
+          .then(data => applyProjectUrl((data && data.url) || ''))
+          .catch(() => applyProjectUrl(''));
+      } else {
+        applyProjectUrl('');
+      }
+      showToast(activeProject ? 'Now working in project: ' + activeProject : 'No project selected', 'info');
+    }
+    // Saves the URL typed in the Project bar (Enter key or Set button) to the
+    // currently selected project in the dropdown. With no project selected it
+    // auto-creates one named after the URL host so the project appears in the
+    // dropdown with the URL attached.
+    function saveProjectUrl() {
+      const inp = document.getElementById('projectUrlInput');
+      let url = inp ? inp.value.trim() : '';
+      if (!url) { showToast('Enter the project URL first', 'warning'); if (inp) inp.focus(); return; }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+
+      const attachToProject = name => {
+        fetch('/projects/' + encodeURIComponent(name) + '/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        }).then(async r => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) { showToast(data.error || 'Could not save the URL', 'error'); return; }
+          const item = projectList.find(p => p.project === name);
+          if (item) item.url = url;
+          applyProjectUrl(url);
+          refreshProjectSelect();
+          showToast('URL saved to project "' + name + '": ' + url, 'success');
+        }).catch(err => showToast(err.message, 'error'));
+      };
+
+      if (activeProject) { attachToProject(activeProject); return; }
+
+      let name = 'project';
+      try { name = new URL(url).hostname.replace(/^www\./i, '').split('.')[0] || 'project'; } catch (e) { name = 'project'; }
+      fetch('/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, url })
+      }).then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { showToast(data.error || 'Could not create project', 'error'); return; }
+        activeProject = data.project || name;
+        try { localStorage.setItem('uiAgentProject', activeProject); } catch (e) {}
+        projectList.push({ project: activeProject, url });
+        applyProjectUrl(url);
+        refreshProjectSelect();
+        reloadIgnored();
+        showToast('Created project "' + activeProject + '" with URL: ' + url, 'success');
+      }).catch(err => showToast(err.message, 'error'));
+    }
+    function loadProjects() {
+      fetch('/projects')
+        .then(r => r.json())
+        .then(list => { projectList = Array.isArray(list) ? list : []; refreshProjectSelect(); })
+        .catch(() => {});
+    }
+    loadProjects();
     function getIgnoredNames(url) { return (url && ignoredStore[url]) || []; }
     // Checks a single issue against the dismissed store. Resolve (Apply Fix /
     // Re-check) stores a precise key; Ignore stores the issue title (name) in
@@ -759,7 +1002,7 @@
       return issue.name;
     }
     const $ = id => document.getElementById(id);
-    const urlInput = $('urlInput'), analyzeBtn = $('analyzeBtn');
+    const analyzeBtn = $('analyzeBtn');
     const dashboard = $('dashboard'), emptyState = $('emptyState');
     const emptyTitle = $('emptyTitle'), emptyText = $('emptyText');
     const analysisStatus = $('analysisStatus');
@@ -771,12 +1014,14 @@
     const urlDisplay = $('urlDisplay');
     const toastContainer = $('toastContainer');
 
+    const ICON_EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const ICON_EYE_OFF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
     function togglePw(inputId, btn) {
       const inp = document.getElementById(inputId);
       if (!inp) return;
       const isPw = inp.type === 'password';
       inp.type = isPw ? 'text' : 'password';
-      btn.innerHTML = isPw ? '&#128064;' : '&#128065;';
+      btn.innerHTML = isPw ? ICON_EYE : ICON_EYE_OFF;
       btn.title = isPw ? 'Hide password' : 'Show password';
     }
 
@@ -823,9 +1068,17 @@
 
     // ΓöÇΓöÇΓöÇ ANALYSIS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     async function runAnalysis() {
-      let url = urlInput.value.trim();
-      if (!url) { showToast('Please enter a URL', 'warning'); return; }
-      if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'https://' + url; urlInput.value = url; }
+      const urlField = document.getElementById('scanUrl');
+      let url = ((urlField && urlField.value) || currentScanUrl || '').trim();
+      if (!url) url = (activeProjectUrl || '').trim();
+      if (!url) {
+        showToast('Enter a URL to scan', 'warning');
+        if (urlField) urlField.focus();
+        return;
+      }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+      currentScanUrl = url;
+      if (urlField) urlField.value = url;
 
       analyzeBtn.disabled = true;
       analyzeBtn.textContent = 'Analyzing...';
@@ -895,6 +1148,7 @@
         let doneMsg = 'Complete: ' + state.issues.length + ' issues found';
         if (filteredCount > 0) doneMsg += ' (' + filteredCount + ' ignored issues hidden)';
         showToast(doneMsg, state.issues.length ? 'warning' : 'success');
+        logToProject('pass', 'SCAN', 'Analyzed ' + state.url + ': ' + state.issues.length + ' issues' + (filteredCount > 0 ? ' (' + filteredCount + ' hidden)' : ''));
       } catch (err) {
         emptyTitle.textContent = 'Failed';
         emptyText.textContent = err.message;
@@ -902,7 +1156,9 @@
         analysisStatus.style.color = 'var(--danger)';
         setStatus('Error', 'error');
         showToast(err.message, 'error');
+        logToProject('fail', 'SCAN', 'Analyze failed: ' + err.message);
       } finally {
+        pvSpinner.classList.remove('show');
         analyzeBtn.disabled = false;
         analyzeBtn.textContent = 'Analyze';
         setTimeout(() => setProgress(0), 1000);
@@ -962,17 +1218,16 @@
           const isFailed = state.failedFixes.has(issue.id);
           const help = getIssueHelp(issue);
           html += '<div class="issue-item severity-' + issue.severity + (isFixed ? ' fixed' : '') + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (state.selectedIssueId === issue.id ? ' selected' : '') + '" onclick="highlightIssue(\'' + issue.id + '\', event)">' +
-            '<div class="issue-header"><span class="issue-title">' + issue.name + '</span>' +
+            '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span>' +
             (isFixed
               ? '<span class="issue-severity" style="background:var(--success-bg);color:var(--success);">Resolved</span>'
-              : '<span class="issue-severity">' + issue.severity + '</span>') +
+              : '<span class="issue-severity">' + escapeHtml(issue.severity) + '</span>') +
             '</div>' +
-            '<div class="issue-desc">' + issue.detail + '</div>' +
-            (help.desc ? '<div class="issue-explanation">' + help.desc + '</div>' : '') +
-            (help.suggestion ? '<div class="issue-suggestion">' + help.suggestion + '</div>' : '') +
+            '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>' +
+            (help.suggestion ? '<div class="issue-suggestion">' + escapeHtml(help.suggestion) + '</div>' : '') +
             '<div class="issue-category">' +
             (issue.context ? '<span style="color:var(--primary);font-weight:600;">Card: ' + escapeHtml(issue.context) + '</span>' : '') +
-            '<span>' + issue.category + '</span><span>' + issue.selector + '</span></div>' +
+            '<span>' + escapeHtml(issue.category) + '</span><span>' + escapeHtml(issue.selector) + '</span></div>' +
             '<div class="issue-actions">';
           if (isFixed) {
             html += '<button class="btn-fix" onclick="deleteIssue(\'' + issue.id + '\')">Delete from list</button>';
@@ -1452,8 +1707,10 @@
       if (resolved) {
         removeIssueFromList(issueId);
         showToast(issue.name + ': Resolved! Removed from list', 'success');
+        logToProject('pass', 'FIX', 'Applied fix: ' + issue.name + ' on ' + state.url + ' — resolved');
       } else {
         showToast('Warning: ' + issue.name + ' still present. Use Re-check to verify again.', 'warning');
+        logToProject('warn', 'FIX', 'Fix not verified: ' + issue.name + ' on ' + state.url + ' — still present');
       }
       renderDashboard();
     }
@@ -1518,9 +1775,86 @@
     }
 
     // ΓöÇΓöÇΓöÇ TAB SWITCHING ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-    function switchTab(tab, btn) {
+    // ─── TAB SWITCHING (3 chapters + sub-tabs) ────────────────────────
+    const CHAPTERS = { scan: ['scan', 'scanall'], compare: ['compare', 'screenshots'], flow: ['flow', 'allflows'] };
+    const SUB_LABELS = { scan: 'Single Scan', scanall: 'Scan All Pages', compare: 'Compare Pages', screenshots: 'Compare Screenshots', flow: 'Flow Test', allflows: 'All Flows' };
+    const CHAPTER_LABELS = { scan: 'Scan Pages', compare: 'Compare', flow: 'Flow' };
+
+    let currentChapter = 'scan';
+    let currentTab = 'scan';
+    let closeTimer = null;
+
+    function switchChapter(chapter, btn) {
+      currentChapter = chapter;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      if (btn) btn.classList.add('active');
+      const subs = CHAPTERS[chapter] || [];
+      buildSubMenu(chapter);
+      setSubTrigger(SUB_LABELS[subs[0]] || subs[0]);
+      switchTab(subs[0]);
+      openSubMenuUnder(btn);
+    }
+
+    // ─── SUB-TAB DROPDOWN (dark popup, opens on hover) ─────────────
+    function previewChapter(chapter, btn) {
+      buildSubMenu(chapter);
+      openSubMenuUnder(btn);
+    }
+    function buildSubMenu(chapter) {
+      const menu = document.getElementById('subTabMenu');
+      if (!menu) return;
+      const subs = CHAPTERS[chapter] || [];
+      menu.innerHTML = subs.map(s => '<button type="button" data-sub="' + s + '" onclick="pickSubTab(\'' + s + '\')">' + escapeHtml(SUB_LABELS[s] || s) + '</button>').join('');
+      markActive(currentTab);
+    }
+    function setSubTrigger(label) {
+      const t = document.getElementById('subTabTrigger');
+      if (t) t.innerHTML = escapeHtml(label) + ' <span class="caret">&#9662;</span>';
+    }
+    function markActive(tab) {
+      const menu = document.getElementById('subTabMenu');
+      if (!menu) return;
+      menu.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.sub === tab));
+    }
+    function openSubMenuUnder(btn) {
+      const menu = document.getElementById('subTabMenu');
+      if (!menu || !btn) return;
+      const r = btn.getBoundingClientRect();
+      cancelCloseSubMenu();
+      menu.style.position = 'fixed';
+      menu.style.left = Math.max(8, r.left) + 'px';
+      menu.style.top = (r.bottom + 6) + 'px';
+      menu.classList.add('open');
+    }
+    function closeSubMenu() {
+      const menu = document.getElementById('subTabMenu');
+      if (menu) menu.classList.remove('open');
+    }
+    function scheduleCloseSubMenu() { cancelCloseSubMenu(); closeTimer = setTimeout(closeSubMenu, 350); }
+    function cancelCloseSubMenu() { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } }
+    function toggleSubMenu(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('subTabMenu');
+      if (menu && menu.classList.contains('open')) closeSubMenu();
+      else openSubMenuUnder(e.currentTarget);
+    }
+    function pickSubTab(tab) {
+      currentChapter = Object.keys(CHAPTERS).find(c => CHAPTERS[c].indexOf(tab) !== -1) || currentChapter;
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === currentChapter));
+      setSubTrigger(SUB_LABELS[tab] || tab);
+      switchTab(tab);
+      closeSubMenu();
+    }
+    document.addEventListener('click', e => { if (!e.target.closest('.sub-tabs') && !e.target.closest('.tabs')) closeSubMenu(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSubMenu(); });
+    window.addEventListener('scroll', closeSubMenu);
+
+    function switchTab(tab) {
+      currentTab = tab;
+      markActive(tab);
+      const csl = document.getElementById('currentSubLabel');
+      if (csl) csl.innerHTML = '<b>' + escapeHtml(CHAPTER_LABELS[currentChapter] || currentChapter) + '</b> &#8250; ' + escapeHtml(SUB_LABELS[tab] || tab);
       document.getElementById('scanView').style.display = tab === 'scan' ? '' : 'none';
       document.getElementById('scanAllView').style.display = tab === 'scanall' ? '' : 'none';
       document.getElementById('compareView').style.display = tab === 'compare' ? '' : 'none';
@@ -1528,7 +1862,7 @@
       document.getElementById('flowView').style.display = tab === 'flow' ? '' : 'none';
       document.getElementById('allFlowsView').style.display = tab === 'allflows' ? '' : 'none';
       // Reset screenshots panel to empty state if no comparison done
-      if (tab === 'screenshots' && !ssCompareState.data) {
+      if (tab === 'screenshots' && ssCompareState && !ssCompareState.data) {
         document.getElementById('ssDashboard').innerHTML = '<div class="empty-state"><h3>Upload screenshots</h3><p>Upload two screenshots of your pages to compare them visually and get best-practice suggestions.</p></div>';
         document.getElementById('ssSummary').textContent = '';
       }
@@ -1583,12 +1917,14 @@
         compareState.issues = (data.issues || []).map(i => ({ ...i })).filter(i => !isIssueDismissed(i.url, i));
         compareState.fixed.clear(); compareState.failed.clear(); compareState.warned.clear(); compareState.selected = null;
         renderComparison();
+        logToProject('pass', 'COMPARE', 'Compared ' + normalized.length + ' pages: ' + compareState.issues.length + ' differences');
       } catch (err) {
         compStatus.textContent = 'Error: ' + err.message;
         compStatus.style.color = 'var(--danger)';
         showToast(err.message, 'error');
       } finally {
         document.getElementById('compareBtn').disabled = false;
+        $('compPvSpinner').classList.remove('show');
         setTimeout(() => { compStatus.style.display = 'none'; compStatus.style.color = 'var(--text-secondary)'; }, 3000);
       }
     }
@@ -2057,12 +2393,15 @@
         await Promise.race([imagesLoaded, timeout]);
 
         ssStatus.textContent = 'Comparison complete';
+        logToProject('pass', 'SCREENSHOT', 'Compared screenshots (' + f1.name + ' vs ' + f2.name + '): ' + ssCompareState.issues.length + ' differences');
         setTimeout(() => { ssStatus.style.display = 'none'; }, 3000);
       } catch (err) {
         ssDash.innerHTML = '<div class="empty-state"><h3>Error</h3><p>' + escapeHtml(err.message) + '</p></div>';
         ssStatus.textContent = 'Error: ' + err.message;
       } finally {
         ssBtn.disabled = false;
+        $('ssPvSpinner').classList.remove('show');
+        $('ssPvSpinner2').classList.remove('show');
       }
     }
 
@@ -2312,9 +2651,16 @@
     }
 
     async function scanAllPages() {
-      let url = document.getElementById('scanAllUrl').value.trim();
-      if (!url) { showToast('Please enter a URL', 'warning'); return; }
-      if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'https://' + url; document.getElementById('scanAllUrl').value = url; }
+      const urlField = document.getElementById('scanAllUrl');
+      let url = ((urlField && urlField.value) || currentScanUrl || activeProjectUrl || '').trim();
+      if (!url) {
+        showToast('Enter a URL to scan', 'warning');
+        if (urlField) urlField.focus();
+        return;
+      }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+      if (urlField) urlField.value = url;
+      document.getElementById('scanAllUrlDisplay').textContent = url;
 
       const scanAllBtn = $('scanAllBtn');
       const dash = $('scanAllResults');
@@ -2361,6 +2707,7 @@
         scanAllBtn.disabled = false;
         scanAllBtn.textContent = 'Scan All Pages';
         setScanAllProgress(0);
+        $('scanAllPvSpinner').classList.remove('show');
       }
     }
 
@@ -2412,65 +2759,122 @@
       html += '<div class="stat-card fixed"><div class="num">' + totalLow + '</div><div class="label">Low Issues</div></div>';
       html += '</div>';
 
-      html += renderCrossPageComparisons();
+      html += '<div style="margin-top:4px;font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Each row is a page. Click a row to see its screenshot and issues below — the list stays here, so you can switch to any other page anytime.</div>';
 
+      html += '<div class="scan-summary" id="scanAllPageList">';
       pages.forEach((page, idx) => {
         const issueCount = page.issues ? page.issues.length : 0;
         const sevHigh = page.issues ? page.issues.filter(i => i.severity === 'high').length : 0;
-        const sevMed = page.issues ? page.issues.filter(i => i.severity === 'medium').length : 0;
-        const sevLow = page.issues ? page.issues.filter(i => i.severity === 'low').length : 0;
         const pageLabel = getPageLabel(page.url);
-        const borderColor = issueCount === 0 ? 'var(--success)' : sevHigh > 0 ? 'var(--danger)' : 'var(--warning)';
-
-        html += '<div class="comp-card" style="margin-bottom:16px;border-left:4px solid ' + borderColor + ';">';
-        html += '<div class="comp-card-header" style="flex-direction:column;align-items:flex-start;gap:4px;">';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">';
-        html += '<span style="font-size:14px;font-weight:700;">Page ' + (idx + 1) + ': ' + escapeHtml(pageLabel) + '</span>';
-        if (issueCount === 0) {
-          html += '<span style="color:var(--success);font-size:12px;font-weight:600;">&#10003; Clean</span>';
-        } else {
-          html += '<span style="color:' + borderColor + ';font-size:12px;font-weight:600;">' + issueCount + ' issues</span>';
-        }
+        const badgeClass = page.error ? 'bad' : (issueCount === 0 ? 'ok' : (sevHigh > 0 ? 'bad' : 'warn'));
+        const badgeText = page.error ? 'Error' : (issueCount === 0 ? '&#10003; Clean' : issueCount + ' issue' + (issueCount === 1 ? '' : 's'));
+        const isActive = idx === scanAllState._activePageIdx;
+        html += '<div class="page-row' + (isActive ? ' active' : '') + '" data-idx="' + idx + '" title="Show \'' + escapeHtml(pageLabel) + '\' below" onclick="event.stopPropagation();selectScanAllPage(' + idx + ')">';
+        html += '<span class="pr-num">' + (idx + 1) + '.</span>';
+        html += '<span class="pr-main"><span class="pr-name">' + escapeHtml(pageLabel) + '</span><span class="pr-title">' + escapeHtml(page.url) + '</span></span>';
+        html += '<span class="pr-badge ' + badgeClass + '">' + badgeText + '</span>';
+        html += '<span class="pr-go">&#8250;</span>';
         html += '</div>';
-        html += '<div style="font-size:11px;color:var(--text-secondary);word-break:break-all;font-family:monospace;">' + escapeHtml(page.url) + '</div>';
-        html += '</div>';
-
-        html += '<div class="comp-card-body">';
-
-        if (page.error) {
-          html += '<div style="color:var(--danger);font-size:13px;padding:8px;background:var(--danger-bg);border-radius:6px;">Error: ' + escapeHtml(page.error) + '</div>';
-        } else if (issueCount === 0) {
-          html += '<div style="color:var(--success);font-size:13px;padding:8px;background:var(--success-bg);border-radius:6px;">&#10003; No issues found on this page</div>';
-        } else {
-          html += '<div style="display:flex;gap:12px;margin-bottom:10px;">';
-          if (sevHigh > 0) html += '<span style="background:var(--danger-bg);color:var(--danger);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">High: ' + sevHigh + '</span>';
-          if (sevMed > 0) html += '<span style="background:var(--warning-bg);color:var(--warning);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Medium: ' + sevMed + '</span>';
-          if (sevLow > 0) html += '<span style="background:var(--success-bg);color:var(--success);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Low: ' + sevLow + '</span>';
-          html += '</div>';
-
-          html += '<div class="issue-list">';
-          page.issues.forEach(issue => {
-            html += renderScanAllIssue(issue, idx);
-          });
-          html += '</div>';
-        }
-        html += '</div></div>';
       });
+      html += '</div>';
+
+      html += '<div id="scanAllPageDetail" style="margin-top:20px;"></div>';
+
+      const crossCount = scanAllState.crossComparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
+      html += '<button type="button" class="cross-toggle" id="scanAllCrossToggle" style="margin-top:22px;" onclick="toggleScanAllCross(this)">' +
+        '<span>&#128202; Cross-page inconsistencies (' + scanAllState.crossComparisons.length + ')</span>' +
+        '<span class="ct-count">' + crossCount + ' differences</span>' +
+        '<span class="ct-arrow">&#9660;</span></button>';
+      html += '<div id="scanAllCross" style="display:none;">' + renderCrossPageComparisons() + '</div>';
 
       dash.innerHTML = html;
 
-      // Right panel: show first page with screenshot
-      const firstWithSS = pages.find(p => p.screenshot);
-      if (firstWithSS) {
-        const pvImg = $('scanAllPvImg');
-        pvImg.src = 'data:image/png;base64,' + firstWithSS.screenshot;
+      if (scanAllState._activePageIdx == null || scanAllState._activePageIdx < 0 || scanAllState._activePageIdx >= pages.length) {
+        const firstWithSS = pages.findIndex(p => p.screenshot);
+        scanAllState._activePageIdx = firstWithSS >= 0 ? firstWithSS : 0;
+      }
+      renderScanAllPageDetail();
+    }
+
+    // Keeps the page list visible and shows the selected page's screenshot +
+    // issues underneath it, so another page can be picked at any time.
+    function selectScanAllPage(pageIdx) {
+      scanAllState._activePageIdx = pageIdx;
+      scanAllState.selected = null;
+      renderScanAllPageDetail();
+    }
+
+    function renderScanAllPageDetail() {
+      const box = document.getElementById('scanAllPageDetail');
+      const hl = $('scanAllPvHighlight');
+      if (hl) hl.classList.remove('show');
+      const idx = scanAllState._activePageIdx;
+      document.querySelectorAll('#scanAllPageList .page-row').forEach(r => r.classList.toggle('active', Number(r.dataset.idx) === idx));
+      const page = scanAllState.pages[idx];
+      if (!box) return;
+      if (!page) { box.innerHTML = ''; return; }
+
+      const issues = page.issues || [];
+      const label = getPageLabel(page.url);
+      let h = '';
+      h += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:14px;">';
+      h += '<strong style="font-size:15px;">' + escapeHtml(label) + '</strong>';
+      h += '<span style="font-size:12px;color:var(--text-secondary);word-break:break-all;">' + escapeHtml(page.url) + '</span>';
+      h += '<span style="font-size:12px;font-weight:700;">' + (page.error ? 'Scan error' : (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : '&#10003; Clean')) + '</span>';
+      if (!page.error) h += '<button class="btn-recheck" style="margin-left:auto;" onclick="openPageDetail(' + idx + ')">Open in Single Scan</button>';
+      h += '</div>';
+      if (page.error) {
+        h += '<div class="warning-badge">Could not scan this page: ' + escapeHtml(page.error) + '</div>';
+      } else if (!issues.length) {
+        h += '<div class="empty-state" style="padding:26px 12px;"><h3>No issues</h3><p>This page passed all checks.</p></div>';
+      } else {
+        h += issues.map(i => renderScanAllIssue(i, idx)).join('');
+      }
+      box.innerHTML = h;
+
+      const pvImg = $('scanAllPvImg');
+      const ssTitle = $('scanAllScreenshotTitle');
+      if (page.screenshot) {
+        pvImg.src = 'data:image/png;base64,' + page.screenshot;
         pvImg.classList.add('show');
         $('scanAllPvSpinner').classList.remove('show');
-        ssTitle.textContent = getPageLabel(firstWithSS.url);
-        scanAllState._activePageIdx = pages.indexOf(firstWithSS);
       } else {
-        ssTitle.textContent = '';
+        pvImg.classList.remove('show');
       }
+      ssTitle.textContent = label;
+    }
+
+    // Opens a scanned page's full result (screenshot + issues) in the single-scan
+    // layout so the user can review the screenshot and Apply Fix per issue.
+    function openPageDetail(pageIdx) {
+      const page = scanAllState.pages[pageIdx];
+      if (!page) { showToast('Page not found', 'error'); return; }
+      if (page.error) { showToast('Page could not be scanned: ' + page.error, 'error'); return; }
+
+      state.url = page.url;
+      state.issues = (page.issues || []).map(i => ({ ...i, id: String(i.id != null ? i.id : i._key) }));
+      state.fixes.clear(); state.fixedIssues.clear(); state.warnedIssues.clear(); state.failedFixes.clear();
+      state.resolvedCount = 0; state.currentFilter = 'all'; state.selectedIssueId = null;
+
+      currentScanUrl = page.url;
+      urlDisplay.textContent = page.url;
+      const scanUrlField = document.getElementById('scanUrl');
+      if (scanUrlField) scanUrlField.value = page.url;
+      if (page.screenshot) {
+        pvImg.src = 'data:image/png;base64,' + page.screenshot;
+        pvImg.classList.add('show');
+        pvSpinner.classList.remove('show');
+      } else {
+        pvImg.classList.remove('show');
+      }
+      pvHighlight.classList.remove('show');
+      emptyState.style.display = 'none';
+      analysisStatus.style.display = 'none';
+      renderDashboard();
+      setStatus(state.issues.length + ' issues', state.issues.length ? 'done' : 'idle');
+
+      switchChapter('scan', document.querySelector('.tab-btn[data-tab="scan"]'));
+      showToast('Loaded "' + getPageLabel(page.url) + '" (' + state.issues.length + ' issues) into single scan', 'info');
     }
 
     function renderScanAllIssue(issue, pageIdx) {
@@ -2482,17 +2886,16 @@
       html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span>' +
         (isFixed
           ? '<span class="issue-severity" style="background:var(--success-bg);color:var(--success);">Resolved</span>'
-          : '<span class="issue-severity">' + issue.severity + '</span>') + '</div>';
+          : '<span class="issue-severity">' + escapeHtml(issue.severity) + '</span>') + '</div>';
       html += '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>';
       if (issue.explanation) {
         html += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
       } else {
-        if (help.desc) html += '<div class="issue-explanation">' + help.desc + '</div>';
-        if (help.suggestion) html += '<div class="issue-suggestion">' + help.suggestion + '</div>';
+        if (help.suggestion) html += '<div class="issue-suggestion">' + escapeHtml(help.suggestion) + '</div>';
       }
       html += '<div class="issue-category">' +
         (issue.context ? '<span style="color:var(--primary);font-weight:600;">Card: ' + escapeHtml(issue.context) + '</span>' : '') +
-        '<span>' + (issue.category || '') + '</span><span>' + escapeHtml(issue.selector) + '</span></div>';
+        '<span>' + escapeHtml(issue.category || '') + '</span><span>' + escapeHtml(issue.selector) + '</span></div>';
       html += '<div class="issue-actions">';
       if (isFixed) {
         html += '<button class="btn-fix" onclick="deleteScanAllIssue(\'' + issue._key + '\')">Delete from list</button>';
@@ -2536,19 +2939,17 @@
           }
 
           for (const [prop, info] of Object.entries(comp.properties)) {
-            html += '<table class="comp-table" style="margin-bottom:8px;"><tr><th>' + prop + '</th>';
-            pageUrls.forEach(u => { html += '<th style="font-size:10px;">' + escapeHtml(getPageLabel(u)) + '</th>'; });
-            html += '</tr><tr><td></td>';
+            html += '<div class="comp-prop"><div class="comp-prop-name">' + escapeHtml(prop) + '</div><div class="comp-values">';
             pageUrls.forEach(u => {
               const match = info.values.find(v => v.url === u);
               const val = match && match.value ? match.value : '-';
               const isDiff = match && match.value && match.value !== info.dominant;
               const valEsc = escapeHtml(val);
               const isColor = /^#([0-9a-f]{3,8}|[0-9a-f]{6})$/i.test(val) || /^rgb/.test(val);
-              const swatch = isColor ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + val + ';border:1px solid var(--border);vertical-align:middle;margin-right:3px;"></span>' : '';
-              html += '<td class="' + (isDiff ? 'diff' : 'same') + '">' + swatch + valEsc + '</td>';
+              const swatch = isColor ? '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + val + ';border:1px solid var(--border);vertical-align:middle;"></span>' : '';
+              html += '<span class="comp-val ' + (isDiff ? 'diff' : 'same') + '">' + swatch + '<b>' + escapeHtml(getPageLabel(u)) + ':</b> ' + valEsc + '</span>';
             });
-            html += '</tr></table>';
+            html += '</div></div>';
           }
 
           html += '</div></div>';
@@ -2557,6 +2958,14 @@
         html += '<div style="margin-bottom:16px;text-align:center;padding:20px;color:var(--success);font-size:14px;border-top:1px solid var(--border);">&#10003; No cross-page inconsistencies found.</div>';
       }
       return html;
+    }
+
+    function toggleScanAllCross(btn) {
+      const box = document.getElementById('scanAllCross');
+      if (!box) return;
+      const isOpen = box.style.display !== 'none' && box.style.display !== '';
+      box.style.display = isOpen ? 'none' : 'block';
+      if (btn) btn.classList.toggle('open', !isOpen);
     }
 
     // Compute an overlay box (wrapper-relative px) for an element bbox on an
@@ -2874,6 +3283,7 @@
         const s = result.summary || {};
         appendFlowTestLog({ kind: 'run', tag: 'DONE', message: 'Flow complete: ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail' });
         showToast('Flow complete: ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail', (s.failed || 0) ? 'warning' : 'success');
+        logToProject((s.failed || 0) ? 'warn' : 'pass', 'FLOW', 'Flow on ' + url + ': ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail');
       } catch (err) {
         flowDash.innerHTML = '<div class="empty-state"><h3 style="color:var(--danger);">Flow Failed</h3><p>' + escapeHtml(err.message) + '</p></div>';
         flowSummary.textContent = '';
@@ -2949,9 +3359,11 @@
     }
 
     async function runAllFlows() {
-      let url = document.getElementById('allFlowsUrl').value.trim();
-      if (!url) { showToast('Please enter your app URL', 'warning'); return; }
-      if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'https://' + url; document.getElementById('allFlowsUrl').value = url; }
+      const afUrlField = document.getElementById('allFlowsUrl');
+      let url = ((afUrlField && afUrlField.value) || '').trim();
+      if (!url) url = activeProjectUrl || '';
+      if (!url) { showToast('Enter a URL to run flows on', 'warning'); if (afUrlField) afUrlField.focus(); return; }
+      if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
 
       const afStatus = document.getElementById('allFlowsStatus');
       const afRunBtn = document.getElementById('allFlowsRunBtn');
@@ -3033,6 +3445,7 @@
         appendFlowLog({ kind: 'pass', tag: 'DONE', message: 'All flows complete — ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail, ' + (s.warned || 0) + ' warn across ' + (s.pages || 0) + ' pages.' });
         afLogBar.textContent = 'Finished ' + flowTime();
         showToast('All flows done: ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail, ' + (s.warned || 0) + ' warn (' + (s.pages || 0) + ' pages)', (s.failed || 0) ? 'warning' : 'success');
+        logToProject((s.failed || 0) ? 'warn' : 'pass', 'ALLFLOWS', 'All flows on ' + url + ': ' + s.passed + ' pass, ' + (s.failed || 0) + ' fail across ' + (s.pages || 0) + ' pages');
       } catch (err) {
         appendFlowLog({ kind: 'fail', tag: 'FAIL', message: err.message });
         if (!allFlowsState.data) {
@@ -3102,13 +3515,38 @@
     document.getElementById('ssCompareBtn').addEventListener('click', compareScreenshots);
     document.getElementById('flowRunBtn').addEventListener('click', runFlow);
     document.getElementById('allFlowsRunBtn').addEventListener('click', runAllFlows);
-    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
+    const projUrlInput = document.getElementById('projectUrlInput');
+    if (projUrlInput) projUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveProjectUrl(); });
+    const scanUrlInput = document.getElementById('scanUrl');
+    if (scanUrlInput) {
+      scanUrlInput.addEventListener('input', () => { currentScanUrl = ''; });
+      scanUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
+    }
     document.getElementById('scanAllUrl').addEventListener('keydown', e => { if (e.key === 'Enter') scanAllPages(); });
+    document.getElementById('allFlowsUrl').addEventListener('keydown', e => { if (e.key === 'Enter') runAllFlows(); });
+    document.getElementById('scanAllUser').addEventListener('keydown', e => { if (e.key === 'Enter') scanAllPages(); });
     document.getElementById('compareUrls').addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.ctrlKey) compareUrls();
     });
+    // Keeps the sticky search/compare toolbars pinned to the REAL height of the
+    // site header so they never slide over the highlighted active sub-tab.
+    function syncHeaderHeight() {
+      const h = document.querySelector('.site-header');
+      if (h) document.documentElement.style.setProperty('--site-header-h', h.offsetHeight + 'px');
+    }
+    window.addEventListener('resize', syncHeaderHeight);
     document.addEventListener('DOMContentLoaded', () => {
-      if (urlInput.value) setTimeout(() => runAnalysis(), 800);
+      syncHeaderHeight();
+      buildSubMenu('scan');
+      setSubTrigger(SUB_LABELS.scan);
+      switchTab('scan');
+      const urlInp = document.getElementById('projectUrlInput');
+      if (activeProject && urlInp) {
+        fetch('/projects/' + encodeURIComponent(activeProject))
+          .then(r => r.json())
+          .then(data => applyProjectUrl((data && data.url) || ''))
+          .catch(() => {});
+      }
     });
   </script>
 </body>
