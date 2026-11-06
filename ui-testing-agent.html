@@ -305,7 +305,45 @@
       background: #fff;
       display: none;
     }
-    .preview-frame-wrap .pv-img.show { display: block; }
+    .preview-frame-wrap .pv-img.show { display: block; cursor: zoom-in; }
+    /* ── Full-screen screenshot viewer (shows the WHOLE page, never cropped) ── */
+    #shotLightbox {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(8, 12, 20, 0.96);
+      display: none; flex-direction: column;
+    }
+    #shotLightbox.open { display: flex; }
+    #shotLbBar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 10px 14px; background: #0f172a; border-bottom: 1px solid #1e293b;
+      color: #e2e8f0;
+    }
+    #shotLbBar .shot-lb-title {
+      font-size: 13px; font-weight: 600; max-width: 46vw;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #shotLbBar .spacer { margin-left: auto; }
+    #shotLbBar button {
+      background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+      border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+      font-family: inherit;
+    }
+    #shotLbBar button:hover { background: #334155; }
+    #shotLbBar button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    #shotLbHint { font-size: 11px; color: #94a3b8; }
+    #shotLbStage {
+      flex: 1 1 auto; overflow: auto; padding: 16px;
+      display: flex; align-items: flex-start; justify-content: center;
+    }
+    #shotLbImg {
+      display: block; background: #fff; border-radius: 4px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
+      max-width: none;
+    }
+    #shotLbImg.fit {
+      max-width: 100%; max-height: calc(100vh - 96px);
+      width: auto; height: auto; margin: auto;
+    }
     .preview-frame-wrap .pv-spinner {
       position: absolute;
       top: 50%; left: 50%;
@@ -534,7 +572,7 @@
         <div class="panel-body" id="screenshotPanel" style="padding:0;display:flex;flex-direction:column;">
           <div class="preview-frame-wrap" id="previewWrap">
             <div class="pv-spinner" id="pvSpinner"></div>
-            <img class="pv-img" id="pvImg" alt="Screenshot" />
+            <img class="pv-img" title="Click to open full screen (shows the whole page)" id="pvImg" alt="Screenshot" />
             <div class="pv-highlight" id="pvHighlight"></div>
           </div>
         </div>
@@ -581,11 +619,11 @@
         <div class="panel-body" id="compScreenshotPanel" style="padding:0;display:flex;flex-direction:column;overflow-y:auto;">
           <div class="preview-frame-wrap" id="compPreviewWrap" style="flex:0 0 auto;min-height:300px;">
             <div class="pv-spinner" id="compPvSpinner"></div>
-            <img class="pv-img" id="compPvImg" alt="Screenshot" />
+            <img class="pv-img" title="Click to open full screen (shows the whole page)" id="compPvImg" alt="Screenshot" />
             <div class="pv-highlight" id="compPvHighlight"></div>
           </div>
           <div class="preview-frame-wrap" id="compPreviewWrap2" style="flex:0 0 auto;min-height:300px;border-top:1px solid var(--border);">
-            <img class="pv-img" id="compPvImg2" alt="Screenshot" />
+            <img class="pv-img" title="Click to open full screen (shows the whole page)" id="compPvImg2" alt="Screenshot" />
             <div class="pv-highlight" id="compPvHighlight2"></div>
           </div>
         </div>
@@ -634,12 +672,12 @@
         <div class="panel-body" id="ssScreenshotPanel" style="padding:0;display:flex;flex-direction:column;">
           <div class="preview-frame-wrap" id="ssPreviewWrap">
             <div class="pv-spinner" id="ssPvSpinner"></div>
-            <img class="pv-img" id="ssPvImg" alt="Screenshot 1" />
+            <img class="pv-img" title="Click to open full screen (shows the whole page)" id="ssPvImg" alt="Screenshot 1" />
             <div class="pv-highlight" id="ssPvHighlight"></div>
           </div>
           <div class="preview-frame-wrap" id="ssPreviewWrap2" style="border-top:1px solid var(--border);">
             <div class="pv-spinner" id="ssPvSpinner2"></div>
-            <img class="pv-img" id="ssPv2Img" alt="Screenshot 2" />
+            <img class="pv-img" title="Click to open full screen (shows the whole page)" id="ssPv2Img" alt="Screenshot 2" />
             <div class="pv-highlight" id="ssPv2Highlight"></div>
           </div>
         </div>
@@ -689,7 +727,7 @@
         <div class="panel-body" id="scanAllScreenshotPanel" style="padding:0;display:flex;flex-direction:column;">
           <div class="preview-frame-wrap" id="scanAllPreviewWrap">
             <div class="pv-spinner" id="scanAllPvSpinner"></div>
-            <img class="pv-img" id="scanAllPvImg" alt="Screenshot" />
+            <img class="pv-img" title="Click to open full screen (shows the whole page)" id="scanAllPvImg" alt="Screenshot" />
             <div class="pv-highlight" id="scanAllPvHighlight"></div>
           </div>
           <div id="scanAllCross" style="display:none;"></div>
@@ -3563,6 +3601,25 @@
       buildSubMenu('scan');
       setSubTrigger(SUB_LABELS.scan);
       switchTab('scan');
+
+      // Add a "Full Screen" button to every screenshot panel header so the
+      // complete page image can always be opened at full size.
+      document.querySelectorAll('.panel').forEach(panel => {
+        if (!panel.querySelector('img.pv-img')) return;
+        const head = panel.querySelector('.panel-header');
+        if (!head || head.querySelector('.shot-fs-btn')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'shot-fs-btn';
+        btn.textContent = '⛶ Full Screen';
+        btn.style.cssText = 'margin-left:auto;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;font-family:inherit;';
+        btn.onclick = () => {
+          const img = panel.querySelector('img.pv-img.show');
+          if (!img || !img.src) { showToast('No screenshot yet — run a scan first.', 'info'); return; }
+          openShotLightbox(img.src, shotPanelTitle(panel));
+        };
+        head.appendChild(btn);
+      });
       const urlInp = document.getElementById('projectUrlInput');
       if (activeProject && urlInp) {
         fetch('/projects/' + encodeURIComponent(activeProject))
@@ -3571,6 +3628,92 @@
           .catch(() => {});
       }
     });
+
+    // ── Full-screen screenshot viewer ─────────────────────────────────────
+    // Any preview image opens here at full size so no part of the page is hidden.
+    const shotLbState = { zoom: 1, fit: true, naturalW: 0, naturalH: 0 };
+    function openShotLightbox(src, title) {
+      const box = document.getElementById('shotLightbox');
+      const img = document.getElementById('shotLbImg');
+      if (!box || !img || !src) return;
+      const t = document.getElementById('shotLbTitle');
+      if (t) t.textContent = title || 'Screenshot';
+      img.src = src;
+      shotLbState.naturalW = img.naturalWidth || 1280;
+      shotLbState.naturalH = img.naturalHeight || 800;
+      shotLbState.zoom = 1;
+      shotLbSetFit(true);
+      box.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeShotLightbox() {
+      const box = document.getElementById('shotLightbox');
+      if (box) box.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    function shotLbSetFit(fit) {
+      const img = document.getElementById('shotLbImg');
+      if (!img) return;
+      shotLbState.fit = !!fit;
+      const fb = document.getElementById('shotLbFit');
+      if (fb) fb.classList.toggle('active', !!fit);
+      if (fit) {
+        img.classList.add('fit');
+        img.style.width = '';
+        img.style.height = '';
+      } else {
+        img.classList.remove('fit');
+        img.style.width = (shotLbState.naturalW * shotLbState.zoom) + 'px';
+        img.style.height = 'auto';
+      }
+    }
+    function shotLbZoom(delta) {
+      const img = document.getElementById('shotLbImg');
+      if (!img) return;
+      shotLbState.zoom = Math.min(4, Math.max(0.25, (shotLbState.zoom || 1) + delta));
+      shotLbState.fit = false;
+      img.classList.remove('fit');
+      img.style.width = (shotLbState.naturalW * shotLbState.zoom) + 'px';
+      img.style.height = 'auto';
+      const fb = document.getElementById('shotLbFit');
+      if (fb) fb.classList.remove('active');
+    }
+    function shotPanelTitle(panel) {
+      if (!panel) return 'Screenshot';
+      const head = panel.querySelector('.panel-header');
+      if (!head) return 'Screenshot';
+      const parts = Array.from(head.querySelectorAll('span, strong')).map(s => s.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      return parts.join(' — ') || 'Screenshot';
+    }
+    document.addEventListener('click', (e) => {
+      const img = e.target && e.target.closest ? e.target.closest('img.pv-img') : null;
+      if (!img || !img.classList.contains('show') || !img.src) return;
+      openShotLightbox(img.src, shotPanelTitle(img.closest('.panel')));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeShotLightbox();
+      const box = document.getElementById('shotLightbox');
+      if (!box || !box.classList.contains('open')) return;
+      if (e.key === '+' || e.key === '=') shotLbZoom(0.25);
+      else if (e.key === '-') shotLbZoom(-0.25);
+      else if (e.key === '0') shotLbSetFit(true);
+    });
   </script>
+  <!-- Full-screen screenshot viewer: shows the complete page, never cropped -->
+  <div id="shotLightbox" role="dialog" aria-modal="true" aria-label="Full screen screenshot">
+    <div id="shotLbBar">
+      <span class="shot-lb-title" id="shotLbTitle">Screenshot</span>
+      <span id="shotLbHint">Whole page is shown — + / − to zoom, scroll to move</span>
+      <span class="spacer"></span>
+      <button type="button" id="shotLbFit" class="active" onclick="shotLbSetFit(true)">Fit</button>
+      <button type="button" onclick="shotLbSetFit(false)">100%</button>
+      <button type="button" onclick="shotLbZoom(-0.25)" title="Zoom out">−</button>
+      <button type="button" onclick="shotLbZoom(0.25)" title="Zoom in">+</button>
+      <button type="button" onclick="closeShotLightbox()">✕ Close</button>
+    </div>
+    <div id="shotLbStage" onclick="if (event.target === this) closeShotLightbox()">
+      <img id="shotLbImg" alt="Full page screenshot" />
+    </div>
+  </div>
 </body>
 </html>
