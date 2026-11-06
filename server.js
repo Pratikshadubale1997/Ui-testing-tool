@@ -2219,7 +2219,7 @@ function enrichCrossPageIssue(issue) {
 
 // ─── SCAN ALL PAGES OF ONE APPLICATION ─────────────────────────────────────
 app.post('/scan-all', async (req, res) => {
-  const { url, username, password, maxPages = 20 } = req.body;
+  const { url, username, password, maxPages = 50 } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
   // Never kill the manual-login window mid-login.
@@ -2348,32 +2348,120 @@ app.post('/scan-all', async (req, res) => {
 
     const discoverLinks = () => page.evaluate(() => {
       const out = [];
-      // 1) Traditional <a href> links
-      document.querySelectorAll('a[href]').forEach(a => {
+      const push = (href) => {
         try {
-          const href = a.getAttribute('href');
+          if (!href) return;
+          href = String(href).trim();
           if (!href || href.startsWith('javascript:') || href.startsWith('tel:') || href.startsWith('mailto:')) return;
           out.push(new URL(href, location.href).href);
         } catch (e) {}
+      };
+      // 1) Traditional <a href> / <area href> links
+      document.querySelectorAll('a[href], area[href]').forEach(a => push(a.getAttribute('href')));
+      // 2) Elements carrying a URL in data-* or framework router attributes
+      const attrs = ['data-href', 'data-url', 'data-link', 'data-route', 'data-path', 'routerlink', 'ng-href', 'to'];
+      document.querySelectorAll('[data-href], [data-url], [data-link], [data-route], [data-path], [routerlink], [ng-href], [to]').forEach(el => {
+        for (const a of attrs) {
+          const v = el.getAttribute(a);
+          if (v) { push(v); break; }
+        }
       });
-      // 2) Buttons/elements with data-href, data-url, data-link attributes
-      document.querySelectorAll('[data-href], [data-url], [data-link]').forEach(el => {
-        try {
-          const href = el.getAttribute('data-href') || el.getAttribute('data-url') || el.getAttribute('data-link');
-          if (href) out.push(new URL(href, location.href).href);
-        } catch (e) {}
-      });
-      // 3) SPA: extract hash routes from clickable nav items (sidebar/menu items)
+      // 3) SPA: hash routes / relative hrefs on clickable nav items
       document.querySelectorAll('[role="menuitem"], [role="tab"], nav a, nav button, .sidebar a, .menu a, .nav a, [class*="sidebar"] a, [class*="menu"] a, [class*="nav"] a').forEach(el => {
-        try {
-          const href = el.getAttribute('href');
-          if (href && (href.startsWith('#') || href.startsWith('/'))) {
-            out.push(new URL(href, location.href).href);
-          }
-        } catch (e) {}
+        const href = el.getAttribute('href');
+        if (href && (href.startsWith('#') || href.startsWith('/'))) push(href);
       });
       return [...new Set(out)];
     });
+
+    // Sitemap discovery — many apps publish every route there.
+    const fetchTextInPage = async (target) => page.evaluate(async (u) => {
+      try {
+        const r = await fetch(u, { credentials: 'include' });
+        if (!r.ok) return '';
+        return await r.text();
+      } catch (e) { return ''; }
+    }, target).catch(() => '');
+
+    const scanSeenSitemaps = new Set();
+    const processSitemap = async (sitemapUrl, depth) => {
+      try {
+        if (!sitemapUrl || scanSeenSitemaps.has(sitemapUrl) || scanSeenSitemaps.size > 6 || depth > 2) return 0;
+        scanSeenSitemaps.add(sitemapUrl);
+        const txt = await fetchTextInPage(sitemapUrl);
+        if (!txt || !/<(urlset|sitemapindex)/i.test(txt)) return 0;
+        const locs = [...txt.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(m => m[1]);
+        const isIndex = /<sitemapindex/i.test(txt);
+        let added = 0;
+        for (const loc of locs.slice(0, 300)) {
+          if (isIndex) {
+            added += await processSitemap(loc, depth + 1);
+          } else {
+            const c = canonicalUrl(loc);
+            if (c && c.startsWith(baseOrigin) && !scanVisited.has(c)) { scanVisited.add(c); queue.push(c); added++; }
+          }
+        }
+        return added;
+      } catch (e) { return 0; }
+    };
+
+    const enqueueSitemapLinks = async () => {
+      let added = 0;
+      for (const s of [baseOrigin + '/sitemap.xml', baseOrigin + '/sitemap_index.xml']) {
+        added += await processSitemap(s, 0);
+      }
+      const robots = await fetchTextInPage(baseOrigin + '/robots.txt');
+      if (robots) {
+        for (const line of robots.split('\n')) {
+          const m = line.match(/^\s*sitemap\s*:\s*(\S+)/i);
+          if (m) added += await processSitemap(m[1].trim(), 0);
+        }
+      }
+      return added;
+    };
+
+    // Click-probe SPA nav items that have no href (JS-routed menus).
+    // Only safe navigation labels are clicked — never actions like delete/save.
+    const NAV_SELECTOR = 'nav a, nav button, aside a, aside button, [role="menuitem"], [role="tab"], .sidebar a, .sidebar button, [class*="sidebar"] a, [class*="sidebar"] button, [class*="menu"] a, [class*="menu"] button, [class*="nav"] a, [class*="nav"] button';
+    const probeClickableNav = async () => {
+      const probeUrl = page.url();
+      let added = 0;
+      const labels = await page.evaluate((sels) => {
+        const out = [];
+        document.querySelectorAll(sels).forEach(el => {
+          const txt = (el.innerText || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+          if (!txt || txt.length > 40) return;
+          if (/delete|remove|logout|log out|sign out|submit|save|create|add new|pay|checkout|send|upload|cancel|reset|clear/i.test(txt)) return;
+          const href = el.getAttribute('href');
+          if (href && href !== '#' && !href.startsWith('javascript:')) return;
+          if (!out.includes(txt)) out.push(txt);
+        });
+        return out.slice(0, 25);
+      }, NAV_SELECTOR).catch(() => []);
+
+      for (const label of labels) {
+        try {
+          await navigateToPage(page, probeUrl, 30000, credentials);
+          const clicked = await page.evaluate(({ sels, label }) => {
+            const els = Array.from(document.querySelectorAll(sels)).filter(el => {
+              const txt = (el.innerText || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+              return txt === label;
+            });
+            if (!els.length) return false;
+            els[0].click();
+            return true;
+          }, { sels: NAV_SELECTOR, label }).catch(() => false);
+          if (!clicked) continue;
+          await page.waitForTimeout(1500);
+          try { await page.waitForNetworkIdle({ idleTime: 500, timeout: 4000 }); } catch (e) {}
+          const cur = page.url();
+          if (!cur.startsWith(baseOrigin) || isAuthProviderUrl(cur)) continue;
+          const c = canonicalUrl(cur);
+          if (c && !scanVisited.has(c)) { scanVisited.add(c); queue.push(c); added++; }
+        } catch (e) {}
+      }
+      return added;
+    };
 
     const queue = [];
     const enqueueLinks = async () => {
@@ -2391,7 +2479,11 @@ app.post('/scan-all', async (req, res) => {
     };
 
     await enqueueLinks();
-    console.log(`  [SCAN] Found ${queue.length} internal links on the home page, crawling...`);
+    const sitemapAdded = await enqueueSitemapLinks();
+    if (sitemapAdded) console.log(`  [SCAN] ${sitemapAdded} page(s) discovered from sitemap/robots`);
+    const clickedAdded = await probeClickableNav();
+    if (clickedAdded) console.log(`  [SCAN] ${clickedAdded} page(s) discovered from clickable SPA navigation`);
+    console.log(`  [SCAN] Found ${queue.length} internal pages to crawl (max ${maxPages})...`);
 
     while (queue.length > 0 && pageResults.length < maxPages) {
       const target = queue.shift();
