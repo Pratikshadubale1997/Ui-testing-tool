@@ -144,10 +144,11 @@
       .content { grid-template-columns: 1fr; height: auto; }
     }
 
-    /* Scan All: let the page grow so the pages list is fully visible (no inner scroll).
-       Both panels stay equal height (stretch) and grow together. */
-    #scanAllView .content { height: auto; min-height: calc(100vh - 210px); }
-    #scanAllView #scanAllResults { overflow-y: visible; }
+    /* Scan All: fixed two-column area. Left dashboard (pages list + issues)
+       scrolls inside its own panel; the right screenshot panel never scrolls. */
+    #scanAllView .content { height: calc(100vh - 200px); min-height: 420px; }
+    #scanAllView #scanAllResults { overflow-y: auto; }
+    #scanAllView #scanAllScreenshotPanel { overflow: hidden; }
 
     /* Dashboard Panel */
     .panel {
@@ -2840,6 +2841,20 @@
       scanAllState._activePageIdx = pageIdx;
       scanAllState.selected = null;
       renderScanAllPageDetail();
+
+      const results = document.getElementById('scanAllResults');
+      const detail = document.getElementById('scanAllPageDetail');
+      const content = document.querySelector('#scanAllView .content');
+
+      // Bring the detail area (issues + screenshot) into view.
+      if (content) content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      // Scroll ONLY the left issues panel down to this page's issues.
+      // The right screenshot panel never moves or scrolls.
+      if (results && detail) {
+        const rel = detail.getBoundingClientRect().top - results.getBoundingClientRect().top + results.scrollTop;
+        results.scrollTo({ top: Math.max(0, rel - 8), behavior: 'smooth' });
+      }
     }
 
     function renderScanAllPageDetail() {
