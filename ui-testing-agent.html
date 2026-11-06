@@ -146,11 +146,8 @@
 
     /* Scan All: let the page grow so the pages list is fully visible (no inner scroll).
        Both panels stay equal height (stretch) and grow together. */
-    #scanAllView #scanAllResults { overflow-y: auto; }
-    #scanAllView #scanAllScreenshotPanel #scanAllCross { flex-shrink: 0; padding: 6px 14px 14px; }
-    .issue-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 14px; font-size: 11px; color: var(--text-secondary); margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
-    .issue-meta b { color: var(--text); font-weight: 600; }
-    .issue-meta span { word-break: break-all; }
+    #scanAllView .content { height: auto; min-height: calc(100vh - 210px); }
+    #scanAllView #scanAllResults { overflow-y: visible; }
 
     /* Dashboard Panel */
     .panel {
@@ -730,8 +727,7 @@
             <img class="pv-img" title="Click to open full screen (shows the whole page)" id="scanAllPvImg" alt="Screenshot" />
             <div class="pv-highlight" id="scanAllPvHighlight"></div>
           </div>
-          <div id="scanAllCross" style="display:none;"></div>
-        </div>
+          </div>
       </div>
     </div>
   </div>
@@ -2801,15 +2797,9 @@
       html += '<div class="stat-card fixed"><div class="num">' + totalLow + '</div><div class="label">Low Issues</div></div>';
       html += '</div>';
 
-      html += '<div style="margin-top:4px;font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Click any page — its issues open below on the left and the screenshot on the right, just like Single Scan. The list stays here so you can switch pages anytime.</div>';
+      html += '<div style="margin-top:4px;font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Each row is a page. Click a row to see its screenshot and issues below ΓÇö the list stays here, so you can switch to any other page anytime.</div>';
 
-      const crossCount = scanAllState.crossComparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
-      html += '<button type="button" class="cross-toggle" id="scanAllCrossToggle" style="margin-bottom:14px;" onclick="toggleScanAllCross(this)">' +
-        '<span>&#128202; Cross-page inconsistencies (' + scanAllState.crossComparisons.length + ')</span>' +
-        '<span class="ct-count">' + crossCount + ' differences</span>' +
-        '<span class="ct-arrow">&#9660;</span></button>';
-
-      let pageListHtml = '<div class="scan-summary" id="scanAllPageList">';
+      html += '<div class="scan-summary" id="scanAllPageList">';
       pages.forEach((page, idx) => {
         const issueCount = page.issues ? page.issues.length : 0;
         const sevHigh = page.issues ? page.issues.filter(i => i.severity === 'high').length : 0;
@@ -2817,22 +2807,25 @@
         const badgeClass = page.error ? 'bad' : (issueCount === 0 ? 'ok' : (sevHigh > 0 ? 'bad' : 'warn'));
         const badgeText = page.error ? 'Error' : (issueCount === 0 ? '&#10003; Clean' : issueCount + ' issue' + (issueCount === 1 ? '' : 's'));
         const isActive = idx === scanAllState._activePageIdx;
-        pageListHtml += '<div class="page-row' + (isActive ? ' active' : '') + '" data-idx="' + idx + '" title="Show \'' + escapeHtml(pageLabel) + '\'" onclick="event.stopPropagation();selectScanAllPage(' + idx + ')">';
-        pageListHtml += '<span class="pr-num">' + (idx + 1) + '.</span>';
-        pageListHtml += '<span class="pr-main"><span class="pr-name">' + escapeHtml(pageLabel) + '</span><span class="pr-title">' + escapeHtml(page.url) + '</span></span>';
-        pageListHtml += '<span class="pr-badge ' + badgeClass + '">' + badgeText + '</span>';
-        pageListHtml += '<span class="pr-go">&#8250;</span>';
-        pageListHtml += '</div>';
+        html += '<div class="page-row' + (isActive ? ' active' : '') + '" data-idx="' + idx + '" title="Show \'' + escapeHtml(pageLabel) + '\' below" onclick="event.stopPropagation();selectScanAllPage(' + idx + ')">';
+        html += '<span class="pr-num">' + (idx + 1) + '.</span>';
+        html += '<span class="pr-main"><span class="pr-name">' + escapeHtml(pageLabel) + '</span><span class="pr-title">' + escapeHtml(page.url) + '</span></span>';
+        html += '<span class="pr-badge ' + badgeClass + '">' + badgeText + '</span>';
+        html += '<span class="pr-go">&#8250;</span>';
+        html += '</div>';
       });
-      pageListHtml += '</div>';
+      html += '</div>';
 
-      html += pageListHtml;
+      html += '<div id="scanAllPageDetail" style="margin-top:20px;"></div>';
 
-      html += '<div id="scanAllPageDetailSplit" style="margin-top:16px;"><div id="scanAllPageDetail"></div></div>';
+      const crossCount = scanAllState.crossComparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
+      html += '<button type="button" class="cross-toggle" id="scanAllCrossToggle" style="margin-top:22px;" onclick="toggleScanAllCross(this)">' +
+        '<span>&#128202; Cross-page inconsistencies (' + scanAllState.crossComparisons.length + ')</span>' +
+        '<span class="ct-count">' + crossCount + ' differences</span>' +
+        '<span class="ct-arrow">&#9660;</span></button>';
+      html += '<div id="scanAllCross" style="display:none;">' + renderCrossPageComparisons() + '</div>';
 
       dash.innerHTML = html;
-      const crossBox = document.getElementById('scanAllCross');
-      if (crossBox) crossBox.innerHTML = renderCrossPageComparisons();
 
       if (scanAllState._activePageIdx == null || scanAllState._activePageIdx < 0 || scanAllState._activePageIdx >= pages.length) {
         const firstWithSS = pages.findIndex(p => p.screenshot);
@@ -2847,8 +2840,6 @@
       scanAllState._activePageIdx = pageIdx;
       scanAllState.selected = null;
       renderScanAllPageDetail();
-      const split = document.getElementById('scanAllPageDetailSplit');
-      if (split) split.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function renderScanAllPageDetail() {
@@ -2863,15 +2854,13 @@
 
       const issues = page.issues || [];
       const label = getPageLabel(page.url);
-      const tTitle = $('scanAllDetailIssuesTitle');
-      const tMeta = $('scanAllDetailIssuesMeta');
-      if (tTitle) tTitle.textContent = page.error ? 'Issues' : (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : 'No issues');
-      if (tMeta) tMeta.textContent = label + ' — ' + page.url;
       let h = '';
-      if (!page.error) {
-        h += '<div style="display:flex;justify-content:flex-end;margin-bottom:10px;">' +
-          '<button class="btn-recheck" onclick="openPageDetail(' + idx + ')">Open in Single Scan</button></div>';
-      }
+      h += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:14px;">';
+      h += '<strong style="font-size:15px;">' + escapeHtml(label) + '</strong>';
+      h += '<span style="font-size:12px;color:var(--text-secondary);word-break:break-all;">' + escapeHtml(page.url) + '</span>';
+      h += '<span style="font-size:12px;font-weight:700;">' + (page.error ? 'Scan error' : (issues.length ? issues.length + ' issue' + (issues.length === 1 ? '' : 's') : '&#10003; Clean')) + '</span>';
+      if (!page.error) h += '<button class="btn-recheck" style="margin-left:auto;" onclick="openPageDetail(' + idx + ')">Open in Single Scan</button>';
+      h += '</div>';
       if (page.error) {
         h += '<div class="warning-badge">Could not scan this page: ' + escapeHtml(page.error) + '</div>';
       } else if (!issues.length) {
@@ -2883,8 +2872,6 @@
 
       const pvImg = $('scanAllPvImg');
       const ssTitle = $('scanAllScreenshotTitle');
-      const dTitle = $('scanAllDetailShotTitle');
-      const emptyNote = $('scanAllShotEmpty');
       if (page.screenshot) {
         pvImg.src = 'data:image/png;base64,' + page.screenshot;
         pvImg.classList.add('show');
@@ -2893,8 +2880,6 @@
         pvImg.classList.remove('show');
       }
       ssTitle.textContent = label;
-      if (dTitle) dTitle.textContent = '— ' + label;
-      if (emptyNote) emptyNote.style.display = page.screenshot ? 'none' : 'block';
     }
 
     // Opens a scanned page's full result (screenshot + issues) in the single-scan
@@ -2935,10 +2920,6 @@
       const isWarned = scanAllState.warned.has(issue._key);
       const isFailed = scanAllState.failed.has(issue._key);
       const help = getIssueHelp(issue);
-      const page = scanAllState.pages[pageIdx] || {};
-      const pageName = getPageLabel(page.url || '');
-      let navPath = page.url || '';
-      try { const u = new URL(page.url); navPath = u.pathname + (u.search || ''); } catch (e) { /* keep full url */ }
       let html = '<div class="issue-item severity-' + issue.severity + (isFixed ? ' fixed' : '') + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (scanAllState.selected === issue._key ? ' selected' : '') + '" onclick="highlightScanAllIssue(\'' + issue._key + '\',' + pageIdx + ', event)">';
       html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span>' +
         (isFixed
@@ -2947,23 +2928,23 @@
       html += '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>';
       if (issue.explanation) {
         html += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
+      } else {
+        if (help.suggestion) html += '<div class="issue-suggestion">' + escapeHtml(help.suggestion) + '</div>';
       }
-      if (help.suggestion) html += '<div class="issue-suggestion">Fix: ' + escapeHtml(help.suggestion) + '</div>';
       html += '<div class="issue-category">' +
         (issue.context ? '<span style="color:var(--primary);font-weight:600;">Card: ' + escapeHtml(issue.context) + '</span>' : '') +
-        '<span>' + escapeHtml(issue.category || '') + '</span></div>';
-      html += '<div class="issue-meta">' +
-        '<span><b>Page:</b> ' + escapeHtml(pageName) + '</span>' +
-        '<span><b>Path:</b> ' + escapeHtml(navPath) + '</span>' +
-        '<span><b>Control:</b> ' + escapeHtml(issue.selector || 'n/a') + '</span>' +
-        '<span><b>URL:</b> ' + escapeHtml(page.url || '') + '</span>' +
-        '</div>';
+        '<span>' + escapeHtml(issue.category || '') + '</span><span>' + escapeHtml(issue.selector) + '</span></div>';
       html += '<div class="issue-actions">';
-      html += '<button class="btn-fix" onclick="applyScanAllFix(\'' + issue._key + '\',' + pageIdx + ')">Apply Fix</button>';
-      html += '<button class="btn-ignore" onclick="ignoreScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Ignore Issue</button>';
-      html += '<button class="btn-recheck" onclick="recheckScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Re-check</button>';
       if (isFixed) {
-        html += '<button class="btn-recheck" onclick="deleteScanAllIssue(\'' + issue._key + '\')">Delete from list</button>';
+        html += '<button class="btn-fix" onclick="deleteScanAllIssue(\'' + issue._key + '\')">Delete from list</button>';
+        html += '<button class="btn-recheck" onclick="recheckScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Re-check</button>';
+      } else if (isFailed) {
+        html += '<button class="btn-fix" onclick="applyScanAllFix(\'' + issue._key + '\',' + pageIdx + ')">Apply Fix</button>';
+        html += '<button class="btn-ignore" onclick="ignoreScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Ignore Issue</button>';
+        html += '<button class="btn-recheck" onclick="recheckScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Re-check</button>';
+      } else {
+        html += '<button class="btn-fix" onclick="applyScanAllFix(\'' + issue._key + '\',' + pageIdx + ')">Apply Fix</button>';
+        html += '<button class="btn-ignore" onclick="ignoreScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Ignore Issue</button>';
       }
       html += '</div>';
       if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
@@ -3023,10 +3004,6 @@
       const isOpen = box.style.display !== 'none' && box.style.display !== '';
       box.style.display = isOpen ? 'none' : 'block';
       if (btn) btn.classList.toggle('open', !isOpen);
-      if (!isOpen) {
-        const split = document.getElementById('scanAllPageDetailSplit');
-        if (split) split.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
     }
 
     // Compute an overlay box (wrapper-relative px) for an element bbox on an
