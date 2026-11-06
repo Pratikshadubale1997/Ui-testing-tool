@@ -170,26 +170,31 @@ async function navigateToPage(page, url, timeout = 30000, credentials = null) {
 
 // Prepares a page before a full-page screenshot so NOTHING is missing:
 // scrolls through the whole document to trigger lazy-loaded images/sections,
-// waits for images + fonts, then returns to the top.
+// waits for images + fonts, then returns to the top. Never throws.
 async function preparePageForScreenshot(page) {
   try {
+    if (page.isClosed()) return;
     await page.evaluate(async () => {
       const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-      const step = Math.max(200, Math.floor(window.innerHeight * 0.8));
-      for (let y = 0; y < document.body.scrollHeight; y += step) {
+      const step = Math.max(400, Math.floor(window.innerHeight * 0.8));
+      const maxY = Math.min(document.body.scrollHeight, 12000);
+      let steps = 0;
+      for (let y = 0; y < maxY && steps < 20; y += step) {
         window.scrollTo(0, y);
-        await sleep(120);
+        steps++;
+        await sleep(60);
       }
-      window.scrollTo(0, document.body.scrollHeight);
-      await sleep(200);
+      window.scrollTo(0, maxY);
+      await sleep(120);
       window.scrollTo(0, 0);
-      await sleep(250);
+      await sleep(120);
       // Force native lazy images to load
       document.querySelectorAll('img[loading="lazy"]').forEach(img => { img.loading = 'eager'; });
     });
   } catch (e) {}
 
   try {
+    if (page.isClosed()) return;
     await page.evaluate(async () => {
       const imgs = Array.from(document.images || []);
       await Promise.race([
@@ -197,15 +202,37 @@ async function preparePageForScreenshot(page) {
           img.addEventListener('load', r, { once: true });
           img.addEventListener('error', r, { once: true });
         })))),
-        new Promise(r => setTimeout(r, 6000)),
+        new Promise(r => setTimeout(r, 2500)),
       ]);
       if (document.fonts && document.fonts.ready) {
-        await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 3000))]);
+        await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1000))]);
       }
     });
   } catch (e) {}
 
-  await page.waitForTimeout(400);
+  try { await page.waitForTimeout(250); } catch (e) {}
+}
+
+// Takes a full-page screenshot without ever breaking the scan: retries once
+// after a navigation, then falls back to a viewport screenshot.
+async function captureFullPage(page) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      if (page.isClosed()) return null;
+      await preparePageForScreenshot(page);
+      return await page.screenshot({ type: 'png', fullPage: true });
+    } catch (e) {
+      console.log(`  [WARN] Full-page screenshot attempt ${attempt} failed: ${e.message}`);
+      try { await page.waitForNetworkIdle({ idleTime: 700, timeout: 7000 }); } catch (_) {}
+      try { await page.waitForTimeout(1200); } catch (_) {}
+    }
+  }
+  try {
+    if (!page.isClosed()) return await page.screenshot({ type: 'png' });
+  } catch (e) {
+    console.log(`  [WARN] Fallback screenshot failed: ${e.message}`);
+  }
+  return null;
 }
 
 // Detects whether the current page is a login/authentication page.
@@ -1130,16 +1157,28 @@ app.post('/analyze', async (req, res) => {
     }
 
     // Take screenshot (full page so all elements, including below-the-fold ones, can be highlighted)
-    await preparePageForScreenshot(page);
-    const screenshot = await page.screenshot({ type: 'png', fullPage: true });
+    const screenshot = await captureFullPage(page);
 
     // Run UI consistency analysis + UX analysis (accessibility, usability, content)
-    const uiIssues = await page.evaluate(ANALYSIS_SCRIPT);
-    const uxIssues = await page.evaluate(UX_ANALYSIS_SCRIPT);
+    // Retry once if the SPA navigates in the middle of the analysis.
+    let uiIssues = [];
+    let uxIssues = [];
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        uiIssues = await page.evaluate(ANALYSIS_SCRIPT);
+        uxIssues = await page.evaluate(UX_ANALYSIS_SCRIPT);
+        break;
+      } catch (e) {
+        console.log(`  [WARN] Analysis attempt ${attempt} failed: ${e.message}`);
+        try { await page.waitForNetworkIdle({ idleTime: 700, timeout: 7000 }); } catch (_) {}
+        try { await page.waitForTimeout(1200); } catch (_) {}
+      }
+    }
     const issues = filterValidIssues([...uiIssues, ...uxIssues]);
 
     // Get page title
-    const title = await page.title();
+    let title = '';
+    try { title = await page.title(); } catch (e) {}
 
     await page.close();
 
@@ -1147,7 +1186,7 @@ app.post('/analyze', async (req, res) => {
       url,
       title,
       issues,
-      screenshot: screenshot.toString('base64'),
+      screenshot: screenshot ? screenshot.toString('base64') : null,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -1173,10 +1212,10 @@ app.post('/screenshot', async (req, res) => {
     await navigateToPage(page, url);
 
     await preparePageForScreenshot(page);
-    const screenshot = await page.screenshot({ type: 'png', fullPage: true });
+    const screenshot = await captureFullPage(page);
     await page.close();
 
-    res.json({ screenshot: screenshot.toString('base64') });
+    res.json({ screenshot: screenshot ? screenshot.toString('base64') : null });
   } catch (err) {
     if (page) await page.close().catch(() => {});
     res.status(500).json({ error: err.message });
@@ -1665,9 +1704,8 @@ app.post('/compare', async (req, res) => {
         await ssPage.setViewport({ width: 1280, height: 800 });
         await ssPage.setDefaultNavigationTimeout(60000);
         await navigateToPage(ssPage, pd.url, 30000, credentials);
-        await preparePageForScreenshot(ssPage);
-        const ss = await ssPage.screenshot({ type: 'png', fullPage: true });
-        screenshots.push({ url: pd.url, data: ss.toString('base64') });
+        const ss = await captureFullPage(ssPage);
+        screenshots.push({ url: pd.url, data: ss ? ss.toString('base64') : null });
         await ssPage.close().catch(() => {});
       } catch (e) {
         screenshots.push({ url: pd.url, data: null });
@@ -2349,8 +2387,7 @@ app.post('/scan-all', async (req, res) => {
 
     // Step 1b: Analyze the home/landing page first
     const initialUrl = page.url();
-    await preparePageForScreenshot(page);
-    const initialScreenshot = await page.screenshot({ type: 'png', fullPage: true });
+    const initialScreenshot = await captureFullPage(page);
     const initialIssues = filterValidIssues([...await page.evaluate(ANALYSIS_SCRIPT), ...await page.evaluate(UX_ANALYSIS_SCRIPT)]);
     const pageResults = [];
 
@@ -2358,7 +2395,7 @@ app.post('/scan-all', async (req, res) => {
       url: initialUrl,
       title: 'Home',
       issues: initialIssues,
-      screenshot: initialScreenshot.toString('base64'),
+      screenshot: initialScreenshot ? initialScreenshot.toString('base64') : null,
     });
 
     console.log(`  [SCAN] Home page scanned: ${initialIssues.length} issues`);
@@ -2550,8 +2587,7 @@ app.post('/scan-all', async (req, res) => {
           continue;
         }
 
-        await preparePageForScreenshot(page);
-        const screenshot = await page.screenshot({ type: 'png', fullPage: true });
+        const screenshot = await captureFullPage(page);
         const issues = filterValidIssues(await page.evaluate(ANALYSIS_SCRIPT));
         const title = (await page.title()) || 'Page ' + (pageResults.length + 1);
 
@@ -2559,7 +2595,7 @@ app.post('/scan-all', async (req, res) => {
           url: finalUrl,
           title,
           issues,
-          screenshot: screenshot.toString('base64'),
+          screenshot: screenshot ? screenshot.toString('base64') : null,
         });
         console.log(`  [SCAN] ${finalUrl} -> ${issues.length} issues`);
 
