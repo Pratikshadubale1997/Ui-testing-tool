@@ -1989,6 +1989,14 @@
 
       compStatus.style.display = 'block';
       compStatus.textContent = 'Loading ' + normalized.length + ' pages...';
+      // Clear screenshots from a previous compare while the new one loads.
+      compareState.screenshots = [];
+      ['compPvImg', 'compPvImg2'].forEach(id => {
+        const img = $(id);
+        if (img) { img.removeAttribute('src'); img.classList.remove('show'); }
+      });
+      $('compScreenshotTitle').textContent = '';
+      $('compPvSpinner').classList.add('show');
       document.getElementById('compareBtn').disabled = true;
 
       try {
@@ -2067,6 +2075,8 @@
         }
         compDash.innerHTML = leftHtml;
         compDash.scrollTop = 0;
+        // Even with no differences, the two page screenshots must be shown.
+        renderCompareScreenshots();
         return;
       }
 
@@ -2156,25 +2166,35 @@
 
       compDash.innerHTML = leftHtml;
       compDash.scrollTop = 0;
+      renderCompareScreenshots();
+    }
 
-      // Right panel: show BOTH page screenshots (scrollable)
-      if (compareState.screenshots.length > 0) {
-        const ss1 = compareState.screenshots[0];
-        const ss2 = compareState.screenshots[1];
-        if (ss1 && ss1.data) {
-          const pvImg = $('compPvImg');
-          pvImg.src = 'data:image/png;base64,' + ss1.data;
-          pvImg.classList.add('show');
-          $('compPvSpinner').classList.remove('show');
-        }
-        if (ss2 && ss2.data) {
-          const pvImg2 = $('compPvImg2');
-          pvImg2.src = 'data:image/png;base64,' + ss2.data;
-          pvImg2.classList.add('show');
-        }
-        $('compScreenshotTitle').textContent = 'Page 1 vs Page 2';
-        compareState._activeIdx = -1;
+    // Right panel: always show the two page screenshots, even when there are
+    // no differences (that path used to return early and hide both images).
+    function renderCompareScreenshots() {
+      const shots = compareState.screenshots || [];
+      const img1 = $('compPvImg');
+      const img2 = $('compPvImg2');
+      if (!img1 || !img2) return;
+      $('compPvSpinner').classList.remove('show');
+
+      if (!shots.length || !shots.some(s => s && s.data)) {
+        img1.removeAttribute('src'); img1.classList.remove('show');
+        img2.removeAttribute('src'); img2.classList.remove('show');
+        $('compScreenshotTitle').textContent = 'Screenshot not available';
+        return;
       }
+      const ss1 = shots[0], ss2 = shots[1];
+      if (ss1 && ss1.data) {
+        img1.src = 'data:image/png;base64,' + ss1.data;
+        img1.classList.add('show');
+      } else { img1.removeAttribute('src'); img1.classList.remove('show'); }
+      if (ss2 && ss2.data) {
+        img2.src = 'data:image/png;base64,' + ss2.data;
+        img2.classList.add('show');
+      } else { img2.removeAttribute('src'); img2.classList.remove('show'); }
+      $('compScreenshotTitle').textContent = 'Page 1 vs Page 2';
+      compareState._activeIdx = -1;
     }
 
     function renderCompareIssues() {
