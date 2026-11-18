@@ -28,21 +28,45 @@ function manualLoginInProgress() {
   return !!(browser && browser.isConnected() && browserMode === 'manual');
 }
 
+// Serialize browser launches: two simultaneous scan requests must never try
+// to open the same persistent profile (that caused "Failed to launch browser").
+let browserLaunchPromise = null;
+
 async function getBrowser(mode) {
   const wantMode = mode || 'headless';
   if (browser && browser.isConnected() && browserMode === wantMode) return browser;
-  if (browser && browser.isConnected()) {
-    await browser.close().catch(() => {});
-    browser = null;
+  if (browserLaunchPromise) return browserLaunchPromise;
+
+  browserLaunchPromise = (async () => {
+    if (browser && browser.isConnected()) {
+      await browser.close().catch(() => {});
+      browser = null;
+    }
+    let lastErr;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        browser = await puppeteer.launch({
+          headless: wantMode === 'headless' ? 'new' : false,
+          userDataDir: USER_DATA_DIR,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+          defaultViewport: wantMode === 'manual' ? null : { width: 1280, height: 800 },
+        });
+        browserMode = wantMode;
+        return browser;
+      } catch (e) {
+        lastErr = e;
+        console.log(`  [WARN] Browser launch attempt ${attempt} failed: ${e.message.split('\n')[0]}`);
+        await new Promise(r => setTimeout(r, 1500 * attempt));
+      }
+    }
+    throw lastErr;
+  })();
+
+  try {
+    return await browserLaunchPromise;
+  } finally {
+    browserLaunchPromise = null;
   }
-  browser = await puppeteer.launch({
-    headless: wantMode === 'headless' ? 'new' : false,
-    userDataDir: USER_DATA_DIR,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    defaultViewport: wantMode === 'manual' ? null : { width: 1280, height: 800 },
-  });
-  browserMode = wantMode;
-  return browser;
 }
 
 // ─── ANALYSIS RULES (run inside page context) ──────────────────────────────
