@@ -2064,8 +2064,18 @@
       // Interactive cross-page issues (click to highlight on the page screenshot)
       leftHtml += renderCompareIssues();
 
-      if (comparisons.length === 0 && compareState.issues.length === 0) {
-        leftHtml += '<div class="empty-state"><h3>No inconsistencies found</h3><p>All pages appear visually consistent for the checked element types.</p></div>';
+      if (compareState.issues.length === 0) {
+        const hidden = Math.max(0, (data.issues || []).length - compareState.issues.length);
+        const checked = comparisons.length;
+        let why;
+        if (hidden > 0) {
+          why = hidden + ' issue' + (hidden === 1 ? '' : 's') + ' hidden because you ignored or fixed ' + (hidden === 1 ? 'it' : 'them') + ' earlier. Ignored issues stay hidden on every re-run.';
+        } else if (checked > 0) {
+          why = 'Checked ' + checked + ' element type' + (checked === 1 ? '' : 's') + '. No size, color, spacing, font or border difference was found, so there is nothing to fix.';
+        } else {
+          why = 'No matching elements were found on both pages. The pages may use different layouts, or one page did not load fully.';
+        }
+        leftHtml += '<div class="empty-state"><h3>No issues found</h3><p>' + escapeHtml(why) + '</p></div>';
         if (suggestions.length > 0) {
           leftHtml += '<div style="margin-top:20px;"><strong style="font-size:13px;">Suggestions</strong></div>';
           suggestions.forEach(sug => {
