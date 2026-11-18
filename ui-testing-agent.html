@@ -2762,6 +2762,13 @@
 
       html += '<div style="margin-top:4px;font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Each row is a page. Click a row to see its screenshot and issues below ΓÇö the list stays here, so you can switch to any other page anytime.</div>';
 
+      const crossCount = scanAllState.crossComparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
+      html += '<button type="button" class="cross-toggle" id="scanAllCrossToggle" style="margin-top:0;margin-bottom:14px;" onclick="toggleScanAllCross(this)">' +
+        '<span>&#128202; Cross-page inconsistencies (' + scanAllState.crossComparisons.length + ')</span>' +
+        '<span class="ct-count">' + crossCount + ' differences</span>' +
+        '<span class="ct-arrow">&#9660;</span></button>';
+      html += '<div id="scanAllCross" style="display:none;margin-bottom:16px;">' + renderCrossPageComparisons() + '</div>';
+
       html += '<div class="scan-summary" id="scanAllPageList">';
       pages.forEach((page, idx) => {
         const issueCount = page.issues ? page.issues.length : 0;
@@ -2780,13 +2787,6 @@
       html += '</div>';
 
       html += '<div id="scanAllPageDetail" style="margin-top:20px;"></div>';
-
-      const crossCount = scanAllState.crossComparisons.reduce((s, c) => s + Object.keys(c.properties).length, 0);
-      html += '<button type="button" class="cross-toggle" id="scanAllCrossToggle" style="margin-top:22px;" onclick="toggleScanAllCross(this)">' +
-        '<span>&#128202; Cross-page inconsistencies (' + scanAllState.crossComparisons.length + ')</span>' +
-        '<span class="ct-count">' + crossCount + ' differences</span>' +
-        '<span class="ct-arrow">&#9660;</span></button>';
-      html += '<div id="scanAllCross" style="display:none;">' + renderCrossPageComparisons() + '</div>';
 
       dash.innerHTML = html;
 
