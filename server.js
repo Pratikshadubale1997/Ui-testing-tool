@@ -1021,13 +1021,30 @@ function isTrivialDiff(detail) {
   return pairCount > 0; // every measured difference was imperceptible
 }
 
+// Subjective / low-value heuristic rules. These produce "suggestions", not real
+// defects, so they are hidden from the issue list.
+const LOW_VALUE_RULES = new Set([
+  'inconsistent-font-weight', 'inconsistent-font-size',
+  'inconsistent-input-style', 'inconsistent-button-style',
+  'inconsistent-line-height', 'inconsistent-text-align', 'inconsistent-link-color',
+  'inconsistent-section-padding', 'inconsistent-header-padding',
+  'inconsistent-footer-padding', 'inconsistent-card-margin',
+  'ux-deep-nav', 'ux-no-breadcrumbs', 'ux-many-ctas',
+  'ux-no-progress', 'ux-no-back-option', 'ux-no-input-hints',
+  'ux-no-search', 'ux-no-lazy-load', 'ux-no-live-region',
+  'ux-no-empty-state', 'ux-no-success-feedback', 'ux-inconsistent-casing',
+  'ux-mixed-icon-styles', 'ux-positive-tabindex', 'ux-no-external-indicator'
+]);
+
 function filterValidIssues(issues, dedupeTitles = true) {
   if (!Array.isArray(issues)) return issues;
-  // Pass 1 — validity: drop invisible elements, empty data, imperceptible diffs.
+  // Pass 1 — validity: drop invisible elements, empty data, imperceptible diffs,
+  // and subjective rules that are not real defects.
   const valid = issues.filter(i =>
     i && i.name && i.detail &&
     i.bbox && i.bbox.width >= 1 && i.bbox.height >= 1 &&
-    !isTrivialDiff(i.detail)
+    !isTrivialDiff(i.detail) &&
+    !LOW_VALUE_RULES.has(i.ruleId)
   );
   if (!dedupeTitles) return valid;
   // Pass 2 — de-duplicate by title: one entry per unique issue title.

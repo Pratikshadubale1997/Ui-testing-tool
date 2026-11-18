@@ -223,6 +223,11 @@
       font-size: inherit; font-weight: inherit; margin: 0; padding: 0; display: inline; background: none;
     }
     .issue-suggestion::before { content: '≡ƒÆí'; font-size: 13px; }
+    .issue-fix {
+      font-size: 12px; color: var(--success); margin-top: 4px; line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .issue-fix b { color: var(--success); font-weight: 700; }
     .issue-category {
       font-size: 10px; color: var(--text-secondary); margin-top: 2px; display: flex; gap: 4px;
     }
@@ -1217,15 +1222,15 @@
           const isFixed = state.fixedIssues.has(issue.id);
           const isWarned = state.warnedIssues.has(issue.id);
           const isFailed = state.failedFixes.has(issue.id);
-          const help = getIssueHelp(issue);
+          const short = shortIssue(issue);
           html += '<div class="issue-item severity-' + issue.severity + (isFixed ? ' fixed' : '') + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (state.selectedIssueId === issue.id ? ' selected' : '') + '" onclick="highlightIssue(\'' + issue.id + '\', event)">' +
-            '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span>' +
+            '<div class="issue-header"><span class="issue-title">' + escapeHtml(short.title) + '</span>' +
             (isFixed
               ? '<span class="issue-severity" style="background:var(--success-bg);color:var(--success);">Resolved</span>'
               : '<span class="issue-severity">' + escapeHtml(issue.severity) + '</span>') +
             '</div>' +
-            '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>' +
-            (help.suggestion ? '<div class="issue-suggestion">' + escapeHtml(help.suggestion) + '</div>' : '') +
+            '<div class="issue-desc">' + escapeHtml(short.detail) + '</div>' +
+            (short.fix ? '<div class="issue-fix"><b>Fix:</b> ' + escapeHtml(short.fix) + '</div>' : '') +
             '<div class="issue-category">' +
             (issue.context ? '<span style="color:var(--primary);font-weight:600;">Card: ' + escapeHtml(issue.context) + '</span>' : '') +
             '<span>' + escapeHtml(issue.category) + '</span><span>' + escapeHtml(issue.selector) + '</span></div>' +
@@ -1240,6 +1245,7 @@
           } else {
             html += '<button class="btn-fix" onclick="applyFix(\'' + issue.id + '\')">Apply Fix</button>';
             html += '<button class="btn-ignore" onclick="ignoreIssue(\'' + issue.id + '\')">Ignore Issue</button>';
+            html += '<button class="btn-recheck" onclick="recheckIssue(\'' + issue.id + '\')">Re-check</button>';
           }
           html += '</div>';
           if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
@@ -1293,6 +1299,101 @@
       pvHighlight.style.width = w + 'px';
       pvHighlight.style.height = h + 'px';
       pvHighlight.classList.add('show');
+    }
+
+    // Turns any issue into a SHORT, plain-English card: title + one-line
+    // detail + a one-line "Fix:". Keeps every card to a couple of lines.
+    function shortIssue(issue) {
+      const rid = String(issue.ruleId || '').toLowerCase();
+      const nm  = String(issue.name || '').toLowerCase();
+      // [title, detail, fix]
+      const M = {
+        'contrast': ['Low text contrast', 'Text is hard to read.', 'Darken the text or lighten the background.'],
+        'ux-low-contrast': ['Low text contrast', 'Text is hard to read.', 'Darken the text or lighten the background.'],
+        'missing-alt': ['Image has no alt text', 'Screen readers cannot describe it.', 'Add alt text describing the image.'],
+        'ux-missing-alt': ['Image has no alt text', 'Screen readers cannot describe it.', 'Add alt text describing the image.'],
+        'ux-empty-alt-link': ['Linked image has no alt', 'The link has no name for screen readers.', 'Add alt text to the image.'],
+        'small-font': ['Text too small', 'Text is under 12px.', 'Use at least 14px for body text.'],
+        'missing-focus': ['No focus outline', 'Keyboard users cannot see focus.', 'Add a focus outline on :focus.'],
+        'ux-no-focus': ['No focus outline', 'Keyboard users cannot see focus.', 'Add a focus outline on :focus.'],
+        'ux-global-outline-none': ['Focus outline hidden', 'Focus is removed for all elements.', 'Restore a visible focus outline.'],
+        'touch-target': ['Small tap target', 'Hard to tap on a phone.', 'Make it at least 44x44px.'],
+        'ux-small-touch': ['Small tap target', 'Hard to tap on a phone.', 'Make it at least 44x44px.'],
+        'missing-form-labels': ['Field has no label', 'Users cannot tell what to enter.', 'Add a label for this field.'],
+        'ux-missing-label': ['Field has no label', 'Users cannot tell what to enter.', 'Add a label for this field.'],
+        'no-responsive': ['No mobile viewport', 'The page will not scale on phones.', 'Add a viewport meta tag.'],
+        'ux-no-viewport': ['No mobile viewport', 'The page will not scale on phones.', 'Add a viewport meta tag.'],
+        'missing-aria': ['Button has no label', 'Screen readers cannot name it.', 'Add an aria-label to the button.'],
+        'ux-missing-aria': ['Button has no label', 'Screen readers cannot name it.', 'Add an aria-label to the button.'],
+        'inconsistent-font-size': ['Text sizes differ', 'Same text uses different sizes.', 'Use one size for each text level.'],
+        'inconsistent-input-style': ['Form fields differ', 'Inputs look inconsistent.', 'Use one style for all fields.'],
+        'inconsistent-button-style': ['Buttons differ', 'Buttons look inconsistent.', 'Use one style for all buttons.'],
+        'missing-currency': ['No currency symbol', 'The price has no currency mark.', 'Add the currency symbol to the price.'],
+        'ux-no-nav-region': ['No navigation area', 'Main links are not grouped.', 'Wrap main links in a nav element.'],
+        'ux-dead-end': ['No way forward', 'The page has no links or buttons.', 'Add links or a call-to-action.'],
+        'ux-no-cta': ['No action button', 'The form has no button.', 'Add a clearly named button.'],
+        'ux-vague-cta': ['Unclear button text', 'The button does not say what it does.', 'Use clear text like "Save Changes".'],
+        'ux-disabled-no-reason': ['Disabled with no reason', 'Users cannot tell why it is off.', 'Add a short hint explaining why.'],
+        'ux-no-fieldset': ['Options not grouped', 'The choice has no group label.', 'Group them with a fieldset and legend.'],
+        'ux-no-pw-toggle': ['Password hidden', 'There is no show/hide toggle.', 'Add a show/hide toggle.'],
+        'ux-no-autocomplete': ['No autocomplete', 'The browser cannot fill this field.', 'Turn on autocomplete for the field.'],
+        'ux-search-no-submit': ['Search has no button', 'The search cannot be submitted.', 'Add a search button.'],
+        'ux-search-no-label': ['Search has no label', 'The field has no clear name.', 'Add a label or aria-label.'],
+        'ux-broken-image': ['Broken image', 'The image did not load.', 'Check the image URL.'],
+        'ux-broken-link': ['Dead link', 'The link goes nowhere.', 'Point it to a real page.'],
+        'ux-form-no-action': ['Form has no action', 'The form cannot submit.', 'Add an action URL or submit handler.'],
+        'ux-negative-tabindex': ['Hidden from keyboard', 'Tab cannot reach this element.', 'Use tabindex="0" instead.'],
+        'ux-clickable-not-focusable': ['Not keyboard reachable', 'This clickable item has no tab stop.', 'Make it focusable with tabindex="0".'],
+        'ux-no-skip-nav': ['No skip link', 'Users must tab through all links.', 'Add a "Skip to main content" link.'],
+        'ux-missing-lang': ['No page language', 'Text may be pronounced wrong.', 'Add lang="en" to the html tag.'],
+        'ux-heading-skip': ['Heading level skipped', 'Headings jump a level.', 'Use the next heading level.'],
+        'ux-missing-h1': ['No H1 heading', 'The page has no main title.', 'Add one H1 page title.'],
+        'ux-multiple-h1': ['Too many H1 headings', 'There is more than one main title.', 'Keep only one H1.'],
+        'ux-empty-link': ['Link has no text', 'Screen readers cannot name it.', 'Add text or an aria-label.'],
+        'ux-vague-link': ['Unclear link text', 'The link text is vague.', 'Use descriptive link text.'],
+        'ux-no-main-region': ['No main area', 'Content is not marked as main.', 'Wrap the content in a main element.'],
+        'ux-conflicting-actions': ['Actions look alike', 'Safe and risky buttons look the same.', 'Style the risky action differently.'],
+        'ux-no-delete-confirm': ['Delete without confirm', 'Users can delete by mistake.', 'Ask for confirmation first.'],
+        'ux-no-success-feedback': ['No success message', 'Users cannot tell it worked.', 'Show a message after submit.'],
+        'ux-unclear-submit': ['Unclear submit text', 'The button only says "Submit".', 'Use clear text like "Save Changes".'],
+        'ux-autoplay-media': ['Media autoplays', 'Audio or video plays by itself.', 'Remove autoplay.'],
+        'ux-img-no-dimensions': ['Image has no size', 'The layout shifts when it loads.', 'Add width and height.'],
+        'ux-missing-title': ['No page title', 'The browser tab has no title.', 'Add a title tag.'],
+        'ux-no-meta-desc': ['No page description', 'No text for search results.', 'Add a meta description.']
+      };
+      let m = M[rid];
+      if (!m) {
+        // Fall back to matching the (friendly) issue name by keyword.
+        if (/contrast/i.test(nm)) m = M['contrast'];
+        else if (/alt/i.test(nm)) m = M['missing-alt'];
+        else if (/label/i.test(nm)) m = M['ux-missing-label'];
+        else if (/autocomplete/i.test(nm)) m = M['ux-no-autocomplete'];
+        else if (/viewport|fixed-width|horizontal scroll/i.test(nm)) m = M['no-responsive'];
+        else if (/dead link|placeholder|broken link/i.test(nm)) m = M['ux-broken-link'];
+        else if (/action url/i.test(nm)) m = M['ux-form-no-action'];
+        else if (/skip navigation/i.test(nm)) m = M['ux-no-skip-nav'];
+        else if (/heading/i.test(nm)) m = M['ux-heading-skip'];
+        else if (/main content|main region/i.test(nm)) m = M['ux-no-main-region'];
+        else if (/submit text|unclear submit/i.test(nm)) m = M['ux-unclear-submit'];
+        else if (/success feedback/i.test(nm)) m = M['ux-no-success-feedback'];
+        else if (/empty.*state/i.test(nm)) m = ['No empty state', 'Blank areas have no message.', 'Add an empty state message.'];
+        else if (/outline/i.test(nm)) m = M['ux-global-outline-none'];
+        else if (/link without text|empty link/i.test(nm)) m = M['ux-empty-link'];
+        else if (/form label/i.test(nm)) m = M['ux-missing-label'];
+      }
+      if (!m) {
+        // Generic fallback: first line of the detail + the recommendation.
+        const clean = s => String(s || '').replace(/\s+/g, ' ').trim();
+        const d = clean(issue.detail);
+        const f = clean(issue.recommendation || helpSuggestion(issue));
+        m = [issue.name || 'Issue', d.split(/[.!?]/)[0] || d, f.split(/[.!?]/)[0] || f];
+      }
+      const clip = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).trimEnd() + '\u2026' : s; };
+      return { title: clip(m[0], 44), detail: clip(m[1], 92), fix: clip(m[2], 92) };
+    }
+
+    function helpSuggestion(issue) {
+      try { return getIssueHelp(issue).suggestion || ''; } catch (e) { return ''; }
     }
 
     function getIssueHelp(issue) {
@@ -2101,6 +2202,7 @@
         } else {
           html += '<button class="btn-fix" onclick="applyCompareFix(\'' + issue.id + '\')">Apply Fix</button>';
           html += '<button class="btn-ignore" onclick="ignoreCompareIssue(\'' + issue.id + '\')">Ignore Issue</button>';
+          html += '<button class="btn-recheck" onclick="recheckCompareIssue(\'' + issue.id + '\')">Re-check</button>';
         }
         html += '</div>';
         if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
@@ -2482,20 +2584,15 @@
           const isWarned = ssCompareState.warned.has(issue.id);
           const isFailed = ssCompareState.failed.has(issue.id);
           const bbox = issue.bbox;
-          const friendly = friendlyScreenshotIssue(issue);
+          const short = shortIssue(issue);
           leftHtml += '<div class="issue-item severity-' + issue.severity + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (ssCompareState.selected === issue.id ? ' selected' : '') + '" onclick="highlightScreenshotIssue(\'' + issue.id + '\', event)">';
-          leftHtml += '<div class="issue-header"><span class="issue-title">' + escapeHtml(friendly.title) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
-          leftHtml += '<div class="issue-desc">' + escapeHtml(issue.detail || friendly.desc) + '</div>';
-          if (issue.explanation) {
-            leftHtml += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
-          }
-          if (friendly.suggestion) {
-            leftHtml += '<div class="issue-suggestion">' + escapeHtml(friendly.suggestion) + '</div>';
-          }
+          leftHtml += '<div class="issue-header"><span class="issue-title">' + escapeHtml(short.title) + '</span><span class="issue-severity">' + issue.severity + '</span></div>';
+          leftHtml += '<div class="issue-desc">' + escapeHtml(short.detail) + '</div>';
+          if (short.fix) leftHtml += '<div class="issue-fix"><b>Fix:</b> ' + escapeHtml(short.fix) + '</div>';
           leftHtml += '<div class="issue-actions">';
           leftHtml += '<button class="btn-fix" onclick="applyScreenshotFix(\'' + issue.id + '\')">Apply Fix</button>';
           leftHtml += '<button class="btn-ignore" onclick="ignoreScreenshotIssue(\'' + issue.id + '\')">Ignore Issue</button>';
-          if (isFailed) leftHtml += '<button class="btn-recheck" onclick="recheckScreenshotIssue(\'' + issue.id + '\')">Re-check</button>';
+          leftHtml += '<button class="btn-recheck" onclick="recheckScreenshotIssue(\'' + issue.id + '\')">Re-check</button>';
           leftHtml += '</div>';
           if (isWarned) leftHtml += '<div class="warning-badge">&#9888; Still present after re-check</div>';
           if (isFailed) leftHtml += '<div class="warning-badge">&#9888; Fix not verified</div>';
@@ -2896,18 +2993,14 @@
       const isFixed = scanAllState.fixed.has(issue._key);
       const isWarned = scanAllState.warned.has(issue._key);
       const isFailed = scanAllState.failed.has(issue._key);
-      const help = getIssueHelp(issue);
+      const short = shortIssue(issue);
       let html = '<div class="issue-item severity-' + issue.severity + (isFixed ? ' fixed' : '') + (isWarned || isFailed ? ' warning' : '') + ' clickable' + (scanAllState.selected === issue._key ? ' selected' : '') + '" onclick="highlightScanAllIssue(\'' + issue._key + '\',' + pageIdx + ', event)">';
-      html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(issue.name) + '</span>' +
+      html += '<div class="issue-header"><span class="issue-title">' + escapeHtml(short.title) + '</span>' +
         (isFixed
           ? '<span class="issue-severity" style="background:var(--success-bg);color:var(--success);">Resolved</span>'
           : '<span class="issue-severity">' + escapeHtml(issue.severity) + '</span>') + '</div>';
-      html += '<div class="issue-desc">' + escapeHtml(issue.detail) + '</div>';
-      if (issue.explanation) {
-        html += '<div class="issue-explanation">' + escapeHtml(issue.explanation) + '</div>';
-      } else {
-        if (help.suggestion) html += '<div class="issue-suggestion">' + escapeHtml(help.suggestion) + '</div>';
-      }
+      html += '<div class="issue-desc">' + escapeHtml(short.detail) + '</div>';
+      if (short.fix) html += '<div class="issue-fix"><b>Fix:</b> ' + escapeHtml(short.fix) + '</div>';
       html += '<div class="issue-category">' +
         (issue.context ? '<span style="color:var(--primary);font-weight:600;">Card: ' + escapeHtml(issue.context) + '</span>' : '') +
         '<span>' + escapeHtml(issue.category || '') + '</span><span>' + escapeHtml(issue.selector) + '</span></div>';
@@ -2922,6 +3015,7 @@
       } else {
         html += '<button class="btn-fix" onclick="applyScanAllFix(\'' + issue._key + '\',' + pageIdx + ')">Apply Fix</button>';
         html += '<button class="btn-ignore" onclick="ignoreScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Ignore Issue</button>';
+        html += '<button class="btn-recheck" onclick="recheckScanAllIssue(\'' + issue._key + '\',' + pageIdx + ')">Re-check</button>';
       }
       html += '</div>';
       if (isWarned) html += '<div class="warning-badge">&#9888; Warning: Still present after re-check</div>';
