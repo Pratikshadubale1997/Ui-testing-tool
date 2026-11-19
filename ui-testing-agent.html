@@ -582,6 +582,7 @@
           <span id="compScreenshotTitle" style="font-size:12px;font-weight:400;color:var(--text-secondary);"></span>
         </div>
         <div class="panel-body" id="compScreenshotPanel" style="padding:0;display:flex;flex-direction:column;overflow-y:auto;">
+          <div id="compShotWarn" class="warning-badge" style="display:none;margin:8px 10px 0;"></div>
           <div class="preview-frame-wrap" id="compPreviewWrap" style="flex:0 0 auto;min-height:300px;">
             <div class="pv-spinner" id="compPvSpinner"></div>
             <img class="pv-img" id="compPvImg" alt="Screenshot" />
@@ -1996,6 +1997,7 @@
         if (img) { img.removeAttribute('src'); img.classList.remove('show'); }
       });
       $('compScreenshotTitle').textContent = '';
+      $('compShotWarn').style.display = 'none';
       $('compPvSpinner').classList.add('show');
       document.getElementById('compareBtn').disabled = true;
 
@@ -2185,8 +2187,10 @@
       const shots = compareState.screenshots || [];
       const img1 = $('compPvImg');
       const img2 = $('compPvImg2');
+      const warn = $('compShotWarn');
       if (!img1 || !img2) return;
       $('compPvSpinner').classList.remove('show');
+      if (warn) warn.style.display = 'none';
 
       if (!shots.length || !shots.some(s => s && s.data)) {
         img1.removeAttribute('src'); img1.classList.remove('show');
@@ -2203,7 +2207,19 @@
         img2.src = 'data:image/png;base64,' + ss2.data;
         img2.classList.add('show');
       } else { img2.removeAttribute('src'); img2.classList.remove('show'); }
-      $('compScreenshotTitle').textContent = 'Page 1 vs Page 2';
+
+      const shortUrl = u => {
+        if (!u) return 'unknown';
+        try { const x = new URL(u); return x.hostname + x.pathname + x.search + x.hash; }
+        catch (e) { return String(u).slice(0, 60); }
+      };
+      $('compScreenshotTitle').textContent = '1) ' + shortUrl(ss1 && ss1.url) + '   |   2) ' + shortUrl(ss2 && ss2.url);
+      // Both links can land on the same page (login redirect / SPA default
+      // route). Tell the user instead of silently showing the same image twice.
+      if (warn && ss1 && ss2 && ss1.url && ss1.url === ss2.url) {
+        warn.textContent = '\u26A0 Both links opened the same page: ' + ss1.url + ' — the app may have redirected them.';
+        warn.style.display = 'block';
+      }
       compareState._activeIdx = -1;
     }
 
