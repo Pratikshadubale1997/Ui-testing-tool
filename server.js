@@ -1682,9 +1682,14 @@ app.post('/compare', async (req, res) => {
           });
         }
         const data = await page.evaluate(COMPARE_SCRIPT);
+        // Capture the screenshot on THIS same page/navigation. Re-navigating
+        // later (to data.url) can land on a different page after redirects or
+        // SPA state changes, which produced screenshots of the wrong page.
+        const ss = await captureFullPage(page);
+        data.screenshot = ss ? ss.toString('base64') : null;
         pageData.push(data);
       } catch (err) {
-        pageData.push({ title: '', url, elements: {}, error: err.message });
+        pageData.push({ title: '', url, elements: {}, error: err.message, screenshot: null });
       }
     }
 
@@ -1737,21 +1742,9 @@ app.post('/compare', async (req, res) => {
       }
     }
 
-    // Take screenshots of each page (use same browser context for session)
-    const screenshots = [];
-    for (const pd of pageData) {
-      try {
-        const ssPage = await browser.newPage();
-        await ssPage.setViewport({ width: 1280, height: 800 });
-        await ssPage.setDefaultNavigationTimeout(60000);
-        await navigateToPage(ssPage, pd.url, 30000, credentials);
-        const ss = await captureFullPage(ssPage);
-        screenshots.push({ url: pd.url, data: ss ? ss.toString('base64') : null });
-        await ssPage.close().catch(() => {});
-      } catch (e) {
-        screenshots.push({ url: pd.url, data: null });
-      }
-    }
+    // Screenshots were captured during the analysis navigation above, so each
+    // image always belongs to the page whose data/url is shown in the UI.
+    const screenshots = pageData.map(pd => ({ url: pd.url, data: pd.screenshot || null }));
 
     // ─── GENERATE PER-PAGE ISSUES FROM COMPARISONS ─────────────────────────
     // Each issue carries the url of the offending page plus the element's
