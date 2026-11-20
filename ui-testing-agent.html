@@ -2182,8 +2182,36 @@
     }
 
     // Right panel: always show the two page screenshots, even when there are
+    // Small visual fingerprint of a screenshot (16x16 pixels). Used to detect
+    // two URLs that render the same-looking page even when their base64 PNG
+    // bytes differ (animations, timestamps, lazy images).
+    function screenshotFingerprint(data) {
+      return new Promise(resolve => {
+        if (!data) return resolve(null);
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const c = document.createElement('canvas');
+            c.width = 16; c.height = 16;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0, 16, 16);
+            const px = ctx.getImageData(0, 0, 16, 16).data;
+            let sig = '';
+            for (let i = 0; i < px.length; i += 4) {
+              sig += String.fromCharCode(((px[i] >> 4) << 8) | ((px[i + 1] >> 4) << 4) | (px[i + 2] >> 4));
+            }
+            resolve(sig);
+          } catch (e) { resolve(null); }
+        };
+        img.onerror = () => resolve(null);
+        img.src = 'data:image/png;base64,' + data;
+      });
+    }
+
     // no differences (that path used to return early and hide both images).
     function renderCompareScreenshots() {
+      const runId = (compareState._fingerprintRun || 0) + 1;
+      compareState._fingerprintRun = runId;
       const shots = compareState.screenshots || [];
       const img1 = $('compPvImg');
       const img2 = $('compPvImg2');
@@ -2219,6 +2247,17 @@
       if (warn && ss1 && ss2 && ss1.url && ss1.url === ss2.url) {
         warn.textContent = '\u26A0 Both links opened the same page: ' + ss1.url + ' — the app may have redirected them.';
         warn.style.display = 'block';
+      } else if (warn && ss1 && ss2 && ss1.data && ss2.data && ss1.data === ss2.data) {
+        warn.textContent = '\u26A0 Both screenshots are identical — these URLs may render the same page (for example a login redirect).';
+        warn.style.display = 'block';
+      } else if (warn && ss1 && ss2 && ss1.data && ss2.data && ss1.url !== ss2.url) {
+        Promise.all([screenshotFingerprint(ss1.data), screenshotFingerprint(ss2.data)]).then(([a, b]) => {
+          if (runId !== compareState._fingerprintRun) return;
+          if (a && b && a === b) {
+            warn.textContent = '\u26A0 Both screenshots look the same — these URLs may have redirected to one page (for example a login page).';
+            warn.style.display = 'block';
+          }
+        });
       }
       compareState._activeIdx = -1;
     }
