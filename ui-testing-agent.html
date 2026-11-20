@@ -339,20 +339,20 @@
     /* Flow Test Log */
     .file-log {
       padding: 14px 20px;
-      font-family: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+      font-family: inherit;
       font-size: 12px;
-      line-height: 1.85;
+      line-height: 1.7;
       background: var(--surface);
     }
     .log-line {
       display: flex;
-      gap: 0;
-      padding: 3px 0;
+      gap: 10px;
+      padding: 4px 0;
       border-bottom: 1px solid rgba(0,0,0,0.05);
       align-items: baseline;
     }
-    .log-time { color: var(--text-secondary); flex-shrink: 0; width: 88px; opacity: 0.85; }
-    .log-tag { flex-shrink: 0; width: 64px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .log-time { color: var(--text-secondary); flex-shrink: 0; opacity: 0.85; }
+    .log-tag { flex-shrink: 0; min-width: 52px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
     .log-msg { flex: 1; white-space: pre-wrap; word-break: break-word; }
     .log-info .log-tag, .log-info .log-msg { color: var(--text-secondary); }
     .log-run .log-tag { color: var(--primary); }
